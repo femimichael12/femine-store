@@ -55,7 +55,7 @@ export const products: Product[] = [
     name: 'Cashmere Turtleneck',
     price: 280000,
     category: 'Tops',
-    image: 'https://images.unsplash.com/photo-1556905055-8f358a7a4bb4?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1608739872166-3ba1787f57e3?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     description: 'Ultra-soft 100% cashmere turtleneck sweater. A timeless staple for the sophisticated wardrobe.',
     sizes: ['S', 'M', 'L', 'XL'],
     colors: [
@@ -70,7 +70,7 @@ export const products: Product[] = [
     name: 'Satin Blouse',
     price: 140000,
     category: 'Tops',
-    image: 'https://images.unsplash.com/photo-1604176354204-926873ff34b1?auto=format&fit=crop&q=80&w=800',
+    image: 'https://images.unsplash.com/photo-1704775988639-e9fe3b7d94fd?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     description: 'Elegant satin blouse with a delicate button-front. Perfect for transitioning from day to night.',
     sizes: ['S', 'M', 'L'],
     colors: [
