@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast, Toaster } from 'sonner';
+import { usePaystackPayment } from 'react-paystack';
 import { 
   ShoppingBag, 
   Search, 
@@ -19,7 +20,9 @@ import {
   Trash2,
   Heart,
   Sun,
-  Moon
+  Moon,
+  CheckCircle2,
+  Truck
 } from 'lucide-react';
 import { products } from './data';
 import { Product, CartItem } from './types';
@@ -62,6 +65,19 @@ export default function App() {
     if (saved) return saved as 'light' | 'dark';
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
+
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedColor, setSelectedColor] = useState<string>('');
+  const [customerEmail, setCustomerEmail] = useState('');
+
+  useEffect(() => {
+    if (selectedProduct) {
+      setSelectedQuantity(1);
+      setSelectedSize(selectedProduct.sizes[0] || '');
+      setSelectedColor(selectedProduct.colors[0]?.name || '');
+    }
+  }, [selectedProduct]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -135,6 +151,13 @@ export default function App() {
       color: "bg-brand-blush/20"
     },
     {
+      title: "Elevate Your Style",
+      subtitle: "Discover the latest trends in women's fashion. Elegance and comfort for every occasion.",
+      label: "Fashion Collection",
+      image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=1200",
+      color: "bg-brand-coral/10"
+    },
+    {
       title: "Glow Naturally",
       subtitle: "Luxury skincare for confident women who value nature and results.",
       label: "Eco-Conscious",
@@ -173,7 +196,7 @@ export default function App() {
     });
   }, [selectedCategory, searchQuery]);
 
-  const addToCart = (product: Product, size: string, color: string) => {
+  const addToCart = (product: Product, size: string, color: string, qty = 1) => {
     setCart(prev => {
       const existing = prev.find(item => 
         item.product.id === product.id && 
@@ -188,10 +211,10 @@ export default function App() {
 
       if (existing) {
         return prev.map(item => 
-          item === existing ? { ...item, quantity: item.quantity + 1 } : item
+          item === existing ? { ...item, quantity: item.quantity + qty } : item
         );
       }
-      return [...prev, { product, quantity: 1, selectedSize: size, selectedColor: color }];
+      return [...prev, { product, quantity: qty, selectedSize: size, selectedColor: color }];
     });
   };
 
@@ -213,6 +236,32 @@ export default function App() {
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const formatPrice = (price: number) => `₦${price.toLocaleString()}`;
+
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email: customerEmail || 'guest@example.com',
+    amount: cartTotal * 100, // Paystack amount is in kobo
+    publicKey: 'sk_test_2d14df250c404f0adcc3ebe03f9bfa57be8d3751',
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const handleCheckout = () => {
+    if (!customerEmail) {
+      toast.error('Please enter your email address for the receipt.');
+      return;
+    }
+    initializePayment({
+      onSuccess: () => {
+        toast.success('Payment successful! Your order is being processed.');
+        setCart([]);
+        setCustomerEmail('');
+      },
+      onClose: () => {
+        toast.error('Payment cancelled.');
+      }
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-brand-coral selection:text-white">
@@ -546,6 +595,20 @@ export default function App() {
                     <span>{formatPrice(cartTotal)}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">Shipping and taxes calculated at checkout.</p>
+                  
+                  {cart.length > 0 && (
+                    <div className="pt-2">
+                      <input 
+                        type="email" 
+                        placeholder="Enter email for receipt" 
+                        className="w-full bg-transparent border border-white/20 rounded-lg px-4 py-3 text-sm outline-none focus:border-brand-coral transition-colors"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+
                   <div className="flex flex-col items-center gap-4 py-4 border-t border-dashed mt-4">
                     <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-2">
                        Secure Checkout
@@ -557,7 +620,11 @@ export default function App() {
                       <img src="https://flutterwave.com/images/logo/logo-primary.svg" alt="Flutterwave" className="h-3 w-auto" />
                     </div>
                   </div>
-                  <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-none py-6 text-sm uppercase tracking-widest font-bold">
+                  <Button 
+                    onClick={handleCheckout}
+                    disabled={cart.length === 0}
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-none py-6 text-sm uppercase tracking-widest font-bold disabled:opacity-50"
+                  >
                     Checkout
                   </Button>
                 </div>
@@ -586,8 +653,21 @@ export default function App() {
           />
         </div>
 
-        <div className="container mx-auto px-6 relative z-10 flex items-center py-10">
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-0 w-full">
+        <div className="container mx-auto px-6 relative z-10 flex items-center py-10 overflow-hidden">
+          <motion.div 
+            className="flex flex-col lg:flex-row items-center gap-12 lg:gap-0 w-full cursor-grab active:cursor-grabbing"
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(e, { offset }) => {
+              const swipe = offset.x;
+              if (swipe < -50) {
+                setCurrentSlide(prev => (prev + 1) % heroSlides.length);
+              } else if (swipe > 50) {
+                setCurrentSlide(prev => (prev - 1 + heroSlides.length) % heroSlides.length);
+              }
+            }}
+          >
             <div className="lg:w-1/2 space-y-8">
               <AnimatePresence mode="wait">
                 <motion.div 
@@ -718,7 +798,7 @@ export default function App() {
                 ))}
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Stats Bar */}
@@ -774,7 +854,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
               <motion.div
@@ -790,9 +870,9 @@ export default function App() {
                   onClick={() => setSelectedProduct(product)}
                 >
                   <CardContent className="p-0">
-                    <div className="p-8">
+                    <div className="p-4 md:p-8">
                       <div className={cn(
-                        "relative aspect-square rounded-[2rem] overflow-hidden mb-8 flex items-center justify-center p-8 transition-all duration-700 group-hover:scale-[0.98] group-hover:shadow-inner",
+                        "relative aspect-square rounded-2xl md:rounded-[2rem] overflow-hidden mb-4 md:mb-8 flex items-center justify-center p-4 md:p-8 transition-all duration-700 group-hover:scale-[0.98] group-hover:shadow-inner",
                         idx % 3 === 0 ? "bg-brand-blush/40" : idx % 3 === 1 ? "bg-brand-nude/40" : "bg-brand-gold/10"
                       )}>
                         <img 
@@ -822,26 +902,26 @@ export default function App() {
                       
                       <div className="space-y-4">
                         <div className="space-y-1">
-                          <h4 className="font-bold text-lg leading-tight group-hover:text-brand-coral transition-colors">{product.name}</h4>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{product.category}</p>
+                          <h4 className="font-bold text-sm md:text-lg leading-tight group-hover:text-brand-coral transition-colors line-clamp-2">{product.name}</h4>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest truncate">{product.category}</p>
                         </div>
                         
-                        <div className="flex items-center justify-between pt-2 border-t border-dashed">
-                          <div className="bg-brand-coral/10 text-brand-coral px-4 py-2 rounded-full text-xs font-bold">
+                        <div className="flex items-center justify-between pt-2 border-t border-dashed gap-1">
+                          <div className="bg-brand-coral/10 text-brand-coral px-2.5 py-1 md:px-4 md:py-2 rounded-full text-[9px] md:text-xs font-bold whitespace-nowrap">
                             Buy Now
                           </div>
                           <div className="flex flex-col items-end">
                             {product.salePrice ? (
                               <>
-                                <span className="text-[10px] text-muted-foreground line-through opacity-60 font-bold">
+                                <span className="text-[9px] md:text-[10px] text-muted-foreground line-through opacity-60 font-bold">
                                   {formatPrice(product.price)}
                                 </span>
-                                <span className="font-bold text-xl text-brand-coral">
+                                <span className="font-bold text-sm md:text-xl text-brand-coral">
                                   {formatPrice(product.salePrice)}
                                 </span>
                               </>
                             ) : (
-                               <span className="font-bold text-xl">{formatPrice(product.price)}</span>
+                               <span className="font-bold text-sm md:text-xl">{formatPrice(product.price)}</span>
                             )}
                           </div>
                         </div>
@@ -857,108 +937,189 @@ export default function App() {
 
       {/* Product Detail Modal */}
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-background">
+        <DialogContent className="max-w-[1100px] w-[90vw] p-0 overflow-hidden border border-white/10 bg-background/80 backdrop-blur-xl rounded-[24px] shadow-2xl shadow-brand-coral/5">
           {selectedProduct && (
-            <div className="flex flex-col md:flex-row h-full max-h-[90vh]">
-              <div className="md:w-1/2 bg-brand-muted/20 flex items-center justify-center p-12">
-                <motion.img 
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  src={selectedProduct.image} 
-                  alt={selectedProduct.name} 
-                  className={cn("max-w-full max-h-full object-contain drop-shadow-2xl", theme === 'light' && "mix-blend-multiply")}
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div className="md:w-1/2 p-10 md:p-16 flex flex-col glass scrollbar-hide overflow-y-auto">
-                <DialogHeader className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <span className="text-accent text-xs uppercase tracking-[0.2em] font-bold">{selectedProduct.category}</span>
-                    {selectedProduct.isFlashSale && (
-                      <Badge variant="destructive" className="bg-brand-coral rounded-full animate-pulse px-3 py-1 gap-1">
-                        <Zap className="w-3 h-3 fill-current" />
-                        Flash Sale
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col lg:flex-row max-h-[90vh] overflow-y-auto scrollbar-hide relative"
+            >
+              {/* Left: Image Gallery */}
+              <div className="lg:w-1/2 bg-brand-muted/10 p-6 md:p-10 flex flex-col gap-4">
+                <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-background group">
+                  <motion.img 
+                    src={selectedProduct.image} 
+                    alt={selectedProduct.name} 
+                    className={cn(
+                      "w-full h-full object-cover transition-transform duration-700 group-hover:scale-110", 
+                      theme === 'light' && "mix-blend-multiply"
+                    )}
+                    referrerPolicy="no-referrer"
+                  />
+                  {selectedProduct.isFlashSale && (
+                    <div className="absolute top-4 left-4">
+                      <Badge variant="destructive" className="bg-brand-coral border-none text-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest gap-1.5 shadow-lg">
+                        <Zap className="w-3 h-3 fill-current" /> Flash Sale
                       </Badge>
-                    )}
-                  </div>
-                  <DialogTitle className="text-4xl font-serif font-bold">{selectedProduct.name}</DialogTitle>
-                  <div className="flex items-center gap-2 text-sm justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex text-accent">
-                        {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-3 h-3 fill-current" />)}
-                      </div>
-                      <span className="text-muted-foreground">(24 reviews)</span>
                     </div>
-                    {selectedProduct.stock <= 5 && (
-                      <div className="flex items-center gap-1.5 text-brand-coral text-[10px] font-bold uppercase tracking-widest bg-brand-coral/5 px-3 py-1 rounded-full border border-brand-coral/20">
-                        <AlertCircle className="w-3 h-3" />
-                        Hurry! Only {selectedProduct.stock} left in stock
-                      </div>
-                    )}
-                  </div>
-                </DialogHeader>
-                
-                <div className="mt-6 space-y-6 flex-grow">
-                  <div className="flex items-baseline gap-3">
-                    {selectedProduct.salePrice ? (
-                      <>
-                        <p className="text-3xl font-bold text-brand-coral">{formatPrice(selectedProduct.salePrice)}</p>
-                        <p className="text-lg text-muted-foreground line-through opacity-50">{formatPrice(selectedProduct.price)}</p>
-                      </>
-                    ) : (
-                      <p className="text-3xl font-medium">{formatPrice(selectedProduct.price)}</p>
-                    )}
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed font-light">
-                    {selectedProduct.description}
-                  </p>
-                  
+                  )}
+                </div>
+                {/* Thumbnails (Simulated Gallery) */}
+                <div className="grid grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className={cn(
+                      "aspect-square rounded-xl overflow-hidden bg-background border-2 cursor-pointer transition-all hover:opacity-100",
+                      i === 1 ? "border-brand-coral opacity-100" : "border-transparent opacity-60"
+                    )}>
+                      <img 
+                        src={selectedProduct.image} 
+                        alt={`${selectedProduct.name} view ${i}`} 
+                        className={cn("w-full h-full object-cover", theme === 'light' && "mix-blend-multiply")} 
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right: Product Details */}
+              <div className="lg:w-1/2 p-6 md:p-10 lg:p-12 flex flex-col justify-between">
+                <div className="space-y-8">
+                  {/* Header & Title */}
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <span className="text-xs uppercase tracking-widest font-bold">Select Size</span>
-                      <div className="flex gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-brand-coral text-[10px] uppercase tracking-[0.2em] font-bold">
+                        {selectedProduct.category}
+                      </span>
+                    </div>
+                    <DialogTitle className="text-3xl md:text-5xl font-serif font-bold leading-tight">
+                      {selectedProduct.name}
+                    </DialogTitle>
+                    
+                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="flex text-brand-coral">
+                          {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}
+                        </div>
+                        <span className="text-muted-foreground text-xs uppercase tracking-widest">(24 reviews)</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Price & Description */}
+                  <div className="space-y-6">
+                    <div className="flex items-baseline gap-4">
+                      {selectedProduct.salePrice ? (
+                        <>
+                          <p className="text-3xl font-bold text-brand-coral">{formatPrice(selectedProduct.salePrice)}</p>
+                          <p className="text-xl text-muted-foreground line-through opacity-50">{formatPrice(selectedProduct.price)}</p>
+                        </>
+                      ) : (
+                        <p className="text-3xl font-medium">{formatPrice(selectedProduct.price)}</p>
+                      )}
+                    </div>
+                    
+                    <p className="text-muted-foreground leading-relaxed font-light text-sm">
+                      {selectedProduct.description}
+                    </p>
+
+                    {/* Indicators */}
+                    <div className="flex flex-col gap-2 pt-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Truck className="w-4 h-4 text-brand-coral" />
+                        Free delivery on orders over ₦50,000
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <CheckCircle2 className="w-4 h-4 text-brand-coral" />
+                        In stock and ready to ship
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Selectors */}
+                  <div className="space-y-6 pt-6 border-t border-white/5">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] uppercase tracking-widest font-bold">Size</span>
+                        <button className="text-[10px] text-muted-foreground underline hover:text-brand-coral transition-colors">Size Guide</button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         {selectedProduct.sizes.map(size => (
-                          <button key={size} className="w-10 h-10 border flex items-center justify-center text-xs hover:border-accent hover:text-accent transition-colors">
+                          <button 
+                            key={size} 
+                            onClick={() => setSelectedSize(size)}
+                            className={cn(
+                              "w-12 h-10 border rounded-lg flex items-center justify-center text-xs transition-all font-medium",
+                              selectedSize === size ? "border-brand-coral text-brand-coral bg-brand-coral/5" : "border-border hover:border-brand-coral/50"
+                            )}
+                          >
                             {size}
                           </button>
                         ))}
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <span className="text-xs uppercase tracking-widest font-bold">Select Color</span>
+                    <div className="space-y-3">
+                      <span className="text-[10px] uppercase tracking-widest font-bold">Color: <span className="text-muted-foreground font-normal">{selectedColor}</span></span>
                       <div className="flex gap-3">
                         {selectedProduct.colors.map(color => (
                           <button 
                             key={color.name} 
-                            className="w-6 h-6 rounded-full border border-border ring-offset-2 hover:ring-2 ring-accent transition-all"
+                            onClick={() => setSelectedColor(color.name)}
+                            className={cn(
+                              "w-8 h-8 rounded-full border border-border ring-offset-2 ring-offset-background transition-all hover:scale-110",
+                              selectedColor === color.name ? "ring-2 ring-brand-coral" : "hover:ring-1 hover:ring-border"
+                            )}
                             style={{ backgroundColor: color.hex }}
                             title={color.name}
                           />
                         ))}
                       </div>
                     </div>
+
+                    <div className="space-y-3">
+                      <span className="text-[10px] uppercase tracking-widest font-bold">Quantity</span>
+                      <div className="flex items-center border border-border rounded-lg w-32 h-10">
+                        <button 
+                          onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))} 
+                          className="flex-1 flex items-center justify-center hover:text-brand-coral transition-colors"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <span className="flex-1 text-center text-sm font-medium">{selectedQuantity}</span>
+                        <button 
+                          onClick={() => setSelectedQuantity(selectedQuantity + 1)} 
+                          className="flex-1 flex items-center justify-center hover:text-brand-coral transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-8 flex gap-4">
+                {/* Actions */}
+                <div className="mt-10 flex gap-4 sticky bottom-0 bg-background/80 backdrop-blur-md pt-4 pb-2 z-10">
                   <motion.div className="flex-grow" whileTap={{ scale: 0.98 }}>
                     <Button 
-                      className="w-full rounded-none py-6 bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-xs font-bold shadow-lg shadow-brand-coral/20"
+                      className="w-full h-14 rounded-xl bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-[10px] font-bold shadow-lg shadow-brand-coral/20 border-none flex items-center justify-center gap-2"
                       onClick={() => {
-                        addToCart(selectedProduct, selectedProduct.sizes[0], selectedProduct.colors[0].name);
+                        addToCart(selectedProduct, selectedSize, selectedColor, selectedQuantity);
                         setSelectedProduct(null);
                       }}
                     >
+                      <ShoppingBag className="w-4 h-4" />
                       Add to Bag
                     </Button>
                   </motion.div>
-                  <Button variant="outline" className="rounded-none py-6 px-6 border-border hover:border-brand-coral hover:text-brand-coral">
+                  <Button variant="outline" className="w-14 h-14 rounded-xl border-border hover:border-brand-coral hover:text-brand-coral hover:bg-brand-coral/5 transition-all">
                     <Heart className="w-5 h-5" />
                   </Button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           )}
         </DialogContent>
       </Dialog>
