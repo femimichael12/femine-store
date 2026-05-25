@@ -22,7 +22,9 @@ import {
   Sun,
   Moon,
   CheckCircle2,
-  Truck
+  Truck,
+  Lock,
+  Loader2
 } from 'lucide-react';
 import { products } from './data';
 import { Product, CartItem } from './types';
@@ -46,6 +48,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import AdminDashboard from './AdminDashboard';
 
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -70,6 +73,7 @@ export default function App() {
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [selectedColor, setSelectedColor] = useState<string>('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
 
   useEffect(() => {
     if (selectedProduct) {
@@ -219,13 +223,20 @@ export default function App() {
   };
 
   const removeFromCart = (index: number) => {
-    setCart(prev => prev.filter((_, i) => i !== index));
+    setCart(prev => {
+      const item = prev[index];
+      toast.info(`${item.product.name} removed from bag`, { duration: 2000 });
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const updateQuantity = (index: number, delta: number) => {
     setCart(prev => prev.map((item, i) => {
       if (i === index) {
         const newQty = Math.max(1, item.quantity + delta);
+        if (newQty !== item.quantity) {
+          toast.success(`Quantity updated to ${newQty}`, { duration: 1500 });
+        }
         return { ...item, quantity: newQty };
       }
       return item;
@@ -240,25 +251,34 @@ export default function App() {
   const config = {
     reference: (new Date()).getTime().toString(),
     email: customerEmail || 'guest@example.com',
-    amount: cartTotal * 100, // Paystack amount is in kobo
-    publicKey: 'sk_test_2d14df250c404f0adcc3ebe03f9bfa57be8d3751',
+    amount: Math.round(cartTotal * 100), // Paystack amount is in kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
   };
 
   const initializePayment = usePaystackPayment(config);
 
   const handleCheckout = () => {
     if (!customerEmail) {
-      toast.error('Please enter your email address for the receipt.');
+      toast.error('Email Required', { description: 'Please enter your email address to continue.' });
       return;
     }
+
+    if (!config.publicKey) {
+      toast.error('Configuration Error', { description: 'Payment system is not properly configured.' });
+      return;
+    }
+
+    setIsPaymentLoading(true);
     initializePayment({
-      onSuccess: () => {
-        toast.success('Payment successful! Your order is being processed.');
+      onSuccess: (reference: any) => {
+        setIsPaymentLoading(false);
+        toast.success('Payment Successful', { description: `Order reference: ${reference.reference}` });
         setCart([]);
         setCustomerEmail('');
       },
       onClose: () => {
-        toast.error('Payment cancelled.');
+        setIsPaymentLoading(false);
+        toast.info('Payment cancelled.');
       }
     });
   };
@@ -282,10 +302,10 @@ export default function App() {
 
       {/* Navigation */}
       <nav className={cn(
-        "fixed top-12 left-6 right-6 z-50 transition-all duration-500 rounded-full px-8 py-3 flex items-center justify-between",
+        "fixed top-12 md:top-14 left-4 right-4 md:left-6 md:right-6 z-50 transition-all duration-500 rounded-full px-4 md:px-8 py-2 md:py-3 flex items-center justify-between",
         isScrolled 
-          ? "glass shadow-xl shadow-brand-maroon/5 border-white/40 translate-y-[-2.5rem]" 
-          : "bg-white/40 border-transparent"
+          ? "glass shadow-xl shadow-brand-maroon/5 border-white/40 -translate-y-8 md:-translate-y-10" 
+          : "bg-white/30 backdrop-blur-md border border-white/20"
       )}>
         <div className="flex items-center gap-4">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -383,7 +403,7 @@ export default function App() {
             </SheetContent>
           </Sheet>
           <h1 className="text-2xl font-serif tracking-tighter font-bold flex items-center gap-1 group cursor-pointer">
-            <span className="text-gradient">FEMINÉ</span>
+            <span className="text-gradient text-xl md:text-2xl">FEMINÉ</span>
             <span className="w-1.5 h-1.5 rounded-full bg-brand-coral mb-1 group-hover:scale-150 transition-transform" />
           </h1>
         </div>
@@ -548,94 +568,193 @@ export default function App() {
                 )}
               </AnimatePresence>
             </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md flex flex-col glass border-l border-white/20 shadow-2xl">
-              <SheetHeader>
-                <SheetTitle className="font-serif text-2xl">Your Bag ({cartCount})</SheetTitle>
-              </SheetHeader>
-              <Separator className="my-4" />
-              <ScrollArea className="flex-grow pr-4">
-                {cart.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-20">
-                    <ShoppingBag className="w-12 h-12 mb-4 opacity-20" />
-                    <p>Your bag is empty</p>
+            <SheetContent className="w-full sm:max-w-md md:max-w-lg flex flex-col glass border-l border-white/20 shadow-2xl p-0 h-full">
+              <div className="flex flex-col h-full bg-background/50 backdrop-blur-xl">
+                <SheetHeader className="p-6 md:p-8 border-b border-white/5">
+                  <div className="flex items-center justify-between">
+                    <SheetTitle className="font-serif text-3xl tracking-tight flex items-center gap-3">
+                      Your Bag
+                      <span className="text-sm font-sans bg-brand-coral/10 text-brand-coral px-3 py-1 rounded-full font-bold">
+                        {cartCount} {cartCount === 1 ? 'Item' : 'Items'}
+                      </span>
+                    </SheetTitle>
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    {cart.map((item, idx) => (
-                      <div key={idx} className="flex gap-4">
-                        <div className="w-20 h-24 bg-secondary rounded overflow-hidden flex-shrink-0">
-                          <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                </SheetHeader>
+                
+                <ScrollArea className="flex-grow px-6 md:px-8 py-6">
+                  <AnimatePresence mode="wait">
+                    {cart.length === 0 ? (
+                      <motion.div 
+                        key="empty-cart"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="h-full flex flex-col items-center justify-center text-muted-foreground py-20 text-center"
+                      >
+                        <div className="w-24 h-24 mb-6 rounded-full bg-secondary flex items-center justify-center relative">
+                          <ShoppingBag className="w-10 h-10 text-muted-foreground/50" />
+                          <div className="absolute inset-0 rounded-full border-2 border-dashed border-muted-foreground/20 animate-[spin_10s_linear_infinite]" />
                         </div>
-                        <div className="flex-grow space-y-1">
-                          <div className="flex justify-between">
-                            <h4 className="font-medium text-sm">{item.product.name}</h4>
-                            <p className="font-medium text-sm">{formatPrice(item.product.price)}</p>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Size: {item.selectedSize} | Color: {item.selectedColor}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <div className="flex items-center border rounded-full px-2 py-0.5">
-                              <button onClick={() => updateQuantity(idx, -1)} className="p-1 hover:text-accent"><Minus className="w-3 h-3" /></button>
-                              <span className="mx-2 text-xs font-medium">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(idx, 1)} className="p-1 hover:text-accent"><Plus className="w-3 h-3" /></button>
-                            </div>
-                            <button onClick={() => removeFromCart(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
+                        <h3 className="font-serif text-2xl font-bold mb-2 text-foreground">Your bag is empty</h3>
+                        <p className="text-sm max-w-[250px] mx-auto mb-8">Looks like you haven't added anything to your bag yet.</p>
+                        <Button 
+                          className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-8 uppercase tracking-widest text-xs font-bold"
+                          onClick={() => {
+                            const closeBtn = document.querySelector('[data-state="open"] button[aria-label="Close"]');
+                            if (closeBtn) (closeBtn as HTMLButtonElement).click();
+                          }}
+                        >
+                          Start Shopping
+                        </Button>
+                      </motion.div>
+                    ) : (
+                      <motion.div layout className="space-y-4">
+                        <AnimatePresence initial={false}>
+                          {cart.map((item, idx) => (
+                            <motion.div 
+                              key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${idx}`}
+                              layout="position"
+                              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                              transition={{ duration: 0.3 }}
+                              className="flex gap-5 bg-card/30 p-3 rounded-2xl border border-white/5 shadow-sm group"
+                            >
+                              <div className="w-24 h-32 bg-secondary rounded-xl overflow-hidden flex-shrink-0 relative">
+                                <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
+                              </div>
+                              <div className="flex-grow flex flex-col justify-between py-1">
+                                <div className="space-y-1">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <h4 className="font-bold text-sm md:text-base leading-tight group-hover:text-brand-coral transition-colors line-clamp-2">{item.product.name}</h4>
+                                    <p className="font-bold text-sm whitespace-nowrap">{formatPrice(item.product.price)}</p>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Size: {item.selectedSize} &bull; Color: {item.selectedColor}</p>
+                                </div>
+                                <div className="flex items-center justify-between mt-4">
+                                  <div className="flex items-center bg-secondary rounded-full p-1 border border-white/5">
+                                    <button 
+                                      onClick={() => updateQuantity(idx, -1)} 
+                                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95"
+                                    >
+                                      <Minus className="w-3 h-3" />
+                                    </button>
+                                    <motion.span 
+                                      key={item.quantity}
+                                      initial={{ scale: 0.5 }}
+                                      animate={{ scale: 1 }}
+                                      className="w-8 text-center text-sm font-bold"
+                                    >
+                                      {item.quantity}
+                                    </motion.span>
+                                    <button 
+                                      onClick={() => updateQuantity(idx, 1)} 
+                                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <button 
+                                    onClick={() => removeFromCart(idx)} 
+                                    className="p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </ScrollArea>
+                
+                <SheetFooter className="mt-auto p-6 md:p-8 bg-card/50 border-t border-white/10 backdrop-blur-md">
+                  <div className="w-full space-y-5">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-sm text-muted-foreground">
+                        <span>Shipping</span>
+                        <span>Calculated at checkout</span>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-              <SheetFooter className="mt-auto pt-6 border-t">
-                <div className="w-full space-y-4">
-                  <div className="flex justify-between items-center font-medium">
-                    <span>Subtotal</span>
-                    <span>{formatPrice(cartTotal)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Shipping and taxes calculated at checkout.</p>
-                  
-                  {cart.length > 0 && (
-                    <div className="pt-2">
-                      <input 
-                        type="email" 
-                        placeholder="Enter email for receipt" 
-                        className="w-full bg-transparent border border-white/20 rounded-lg px-4 py-3 text-sm outline-none focus:border-brand-coral transition-colors"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        required
-                      />
+                      <div className="flex justify-between items-center font-serif text-2xl font-bold">
+                        <span>Total</span>
+                        <span className="text-brand-coral">{formatPrice(cartTotal)}</span>
+                      </div>
                     </div>
-                  )}
+                    
+                    <AnimatePresence>
+                      {cart.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="relative group">
+                            <input 
+                              type="email" 
+                              placeholder="Enter email for receipt" 
+                              className="w-full bg-background/50 border border-border rounded-xl px-4 py-3.5 text-sm outline-none focus:border-brand-coral focus:ring-1 focus:ring-brand-coral/50 transition-all shadow-inner"
+                              value={customerEmail}
+                              onChange={(e) => setCustomerEmail(e.target.value)}
+                              required
+                            />
+                            <div className={cn(
+                              "absolute right-4 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-widest font-bold transition-colors pointer-events-none",
+                              customerEmail ? "text-brand-coral" : "text-muted-foreground"
+                            )}>
+                              Required
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
-                  <div className="flex flex-col items-center gap-4 py-4 border-t border-dashed mt-4">
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-2">
-                       Secure Checkout
-                    </p>
-                    <div className="flex items-center gap-4 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-3 w-auto" />
-                      <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-5 w-auto" />
-                      <img src="https://paystack.com/assets/img/login/paystack-logo.png" alt="Paystack" className="h-3 w-auto" />
-                      <img src="https://flutterwave.com/images/logo/logo-primary.svg" alt="Flutterwave" className="h-3 w-auto" />
+                    <Button 
+                      onClick={handleCheckout}
+                      disabled={cart.length === 0 || isPaymentLoading}
+                      className={cn(
+                        "w-full rounded-xl py-7 text-sm uppercase tracking-widest font-bold transition-all duration-300 relative overflow-hidden group",
+                        cart.length > 0 && !isPaymentLoading ? "bg-brand-coral text-white hover:bg-brand-coral/90 hover:shadow-lg hover:shadow-brand-coral/20 hover:-translate-y-1" : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {isPaymentLoading ? (
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Securely Initializing...
+                        </span>
+                      ) : (
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                          Proceed to Checkout
+                          {cart.length > 0 && <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+                        </span>
+                      )}
+                      {cart.length > 0 && !isPaymentLoading && (
+                        <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-shimmer" />
+                      )}
+                    </Button>
+
+                    <div className="flex flex-col items-center gap-4 pt-4 border-t border-border/50">
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-2">
+                        <Lock className="w-3 h-3" /> Secure Checkout
+                      </p>
+                      <div className="flex items-center gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-3 w-auto" />
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-5 w-auto" />
+                        <img src="https://paystack.com/assets/img/login/paystack-logo.png" alt="Paystack" className="h-3 w-auto" />
+                      </div>
                     </div>
                   </div>
-                  <Button 
-                    onClick={handleCheckout}
-                    disabled={cart.length === 0}
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-none py-6 text-sm uppercase tracking-widest font-bold disabled:opacity-50"
-                  >
-                    Checkout
-                  </Button>
-                </div>
-              </SheetFooter>
+                </SheetFooter>
+              </div>
             </SheetContent>
           </Sheet>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <header className="relative min-h-screen pt-24 items-center overflow-hidden flex flex-col justify-center">
+      <header className="relative min-h-screen pt-24 md:pt-32 items-center overflow-hidden flex flex-col justify-center">
         {/* Immersive Atmospheric Background */}
         <div className="absolute inset-0 z-0">
           <div className="absolute inset-0 bg-background" />
@@ -653,7 +772,7 @@ export default function App() {
           />
         </div>
 
-        <div className="container mx-auto px-6 relative z-10 flex items-center py-10 overflow-hidden">
+        <div className="container mx-auto px-6 relative z-10 flex items-center py-12 md:py-20 overflow-hidden">
           <motion.div 
             className="flex flex-col lg:flex-row items-center gap-12 lg:gap-0 w-full cursor-grab active:cursor-grabbing"
             drag="x"
@@ -691,7 +810,7 @@ export default function App() {
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.4 }}
-                      className="text-6xl lg:text-8xl font-serif font-bold leading-[1.1] tracking-tight"
+                      className="text-5xl sm:text-6xl lg:text-8xl font-serif font-bold leading-[1.1] tracking-tight"
                     >
                       <span className="text-brand-coral italic block mb-2 font-normal">
                         {heroSlides[currentSlide].title.split(' ')[0]}
@@ -703,7 +822,7 @@ export default function App() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.6 }}
-                    className="text-lg text-muted-foreground max-w-sm font-light leading-relaxed"
+                    className="text-base md:text-lg text-muted-foreground max-w-sm font-light leading-relaxed"
                   >
                     {heroSlides[currentSlide].subtitle}
                   </motion.p>
@@ -713,17 +832,17 @@ export default function App() {
                     transition={{ delay: 0.8 }}
                     className="flex flex-wrap items-center gap-4 pt-4"
                   >
-                    <Button size="lg" className="rounded-full px-10 py-7 bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-xs font-bold shadow-lg shadow-brand-coral/20 border-none">
+                    <Button size="lg" className="rounded-full px-8 md:px-10 py-6 md:py-7 bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-[10px] md:text-xs font-bold shadow-lg shadow-brand-coral/20 border-none">
                       Shop Now
                     </Button>
-                    <Button variant="outline" size="lg" className="rounded-full px-10 py-7 border-brand-coral text-brand-coral hover:bg-brand-coral/5 uppercase tracking-widest text-xs font-bold shadow-sm bg-transparent">
+                    <Button variant="outline" size="lg" className="rounded-full px-8 md:px-10 py-6 md:py-7 border-brand-coral text-brand-coral hover:bg-brand-coral/5 uppercase tracking-widest text-[10px] md:text-xs font-bold shadow-sm bg-transparent">
                       New Collection
                     </Button>
                   </motion.div>
                 </motion.div>
               </AnimatePresence>
 
-              <div className="flex gap-8 pt-8">
+              <div className="flex gap-4 md:gap-8 pt-8">
                 {[
                   { label: "100% Natural", color: "bg-background" },
                   { label: "Clinically Approved", color: "bg-background" },
@@ -736,7 +855,7 @@ export default function App() {
                     transition={{ delay: 1 + (i * 0.1) }}
                     className="flex flex-col items-center gap-3"
                   >
-                    <div className={cn("w-16 h-16 rounded-full flex items-center justify-center border-4 border-brand-coral/10 text-[9px] font-bold text-center p-2 leading-tight uppercase tracking-tighter", item.color)}>
+                    <div className={cn("w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center border-4 border-brand-coral/10 text-[8px] md:text-[9px] font-bold text-center p-2 leading-tight uppercase tracking-tighter", item.color)}>
                       {item.label}
                     </div>
                   </motion.div>
@@ -802,14 +921,14 @@ export default function App() {
         </div>
 
         {/* Stats Bar */}
-        <div className="absolute bottom-0 left-0 right-0 bg-brand-maroon text-white py-10 z-20">
+        <div className="relative md:absolute md:bottom-0 left-0 right-0 bg-brand-maroon text-white py-8 md:py-10 z-20 w-full">
           <div className="container mx-auto px-6">
-            <div className="flex flex-wrap justify-between items-center gap-8">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-8">
               <div className="space-y-1">
                 <p className="text-xl lg:text-2xl font-serif">Loved by Over <span className="text-brand-coral font-bold">500,000+</span> Customers</p>
-                <p className="text-white/50 text-xs uppercase tracking-widest">Worldwide</p>
+                <p className="text-white/50 text-[10px] uppercase tracking-widest">Worldwide Presence</p>
               </div>
-              <div className="flex gap-16">
+              <div className="flex gap-10 md:gap-16">
                 <div>
                   <p className="text-3xl font-bold">1M+</p>
                   <p className="text-white/50 text-[10px] uppercase tracking-widest">Products Sold This Year</p>
@@ -830,7 +949,7 @@ export default function App() {
       </header>
 
       {/* Featured Products */}
-      <section className="py-32 container mx-auto px-6">
+      <section className="py-20 md:py-32 container mx-auto px-6">
         <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
           <div className="space-y-3">
             <h3 className="text-4xl lg:text-5xl font-serif font-bold">Our Star <span className="text-brand-coral">Products</span></h3>
@@ -854,7 +973,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
               <motion.div
@@ -1125,7 +1244,7 @@ export default function App() {
       </Dialog>
 
       {/* Testimonials Section */}
-      <section className="py-24 bg-white overflow-hidden">
+      <section className="py-16 md:py-24 bg-white overflow-hidden">
         <div className="container mx-auto px-6">
           <div className="text-center space-y-4 mb-20">
             <h4 className="text-brand-coral text-xs uppercase tracking-[0.3em] font-bold">What Our Customers Say</h4>
@@ -1183,7 +1302,7 @@ export default function App() {
       </section>
 
       {/* Beauty Tips Blog Section */}
-      <section className="py-24 bg-secondary/30">
+      <section className="py-16 md:py-24 bg-secondary/30">
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
             <div className="space-y-4">
@@ -1333,6 +1452,291 @@ export default function App() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function AdminDashboard({ onExit, theme, toggleTheme, products }: { onExit: () => void, theme: string, toggleTheme: () => void, products: Product[] }) {
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  const stats = [
+    { label: 'Total Revenue', value: '₦12,450,000', change: '+12.5%', icon: BarChart3 },
+    { label: 'Total Orders', value: '1,284', change: '+8.2%', icon: ShoppingCart },
+    { label: 'Products', value: products.length.toString(), change: '+2', icon: Package },
+    { label: 'Customers', value: '8,432', change: '+15.3%', icon: Users },
+  ];
+
+  const recentOrders = [
+    { id: '#ORD-7721', customer: 'Amara Okafor', product: 'Silk Evening Gown', status: 'Delivered', total: '₦380,000' },
+    { id: '#ORD-7722', customer: 'Zainab Bello', product: 'Glow Serum', status: 'Shipped', total: '₦95,000' },
+    { id: '#ORD-7723', customer: 'Chioma Adeyemi', product: 'Leather Tote Bag', status: 'Pending', total: '₦360,000' },
+    { id: '#ORD-7724', customer: 'Elena Gilbert', product: 'Cashmere Turtleneck', status: 'Processing', total: '₦280,000' },
+  ];
+
+  const navItems = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'products', label: 'Products', icon: Package },
+    { id: 'orders', label: 'Orders', icon: ShoppingCart },
+    { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'discounts', label: 'Discounts', icon: Ticket },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-white flex font-sans selection:bg-brand-coral">
+      <Toaster position="top-right" richColors theme="dark" />
+      
+      {/* Admin Sidebar */}
+      <aside className="w-72 border-r border-white/5 bg-black/50 backdrop-blur-2xl flex flex-col sticky top-0 h-screen">
+        <div className="p-8">
+          <div className="flex items-center gap-2 mb-12">
+            <div className="w-8 h-8 rounded-lg bg-brand-coral flex items-center justify-center">
+              <span className="text-white font-serif font-bold text-lg">F</span>
+            </div>
+            <h2 className="text-xl font-serif font-bold tracking-tight">FEMINÉ <span className="text-[10px] text-brand-coral uppercase tracking-widest block font-sans">Admin Portal</span></h2>
+          </div>
+
+          <nav className="space-y-2">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group",
+                  activeTab === item.id 
+                    ? "bg-brand-coral text-white shadow-lg shadow-brand-coral/20" 
+                    : "text-white/40 hover:text-white hover:bg-white/5"
+                )}
+              >
+                <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-white" : "group-hover:text-brand-coral")} />
+                <span className="text-sm font-medium tracking-wide">{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="mt-auto p-8 space-y-4">
+          <button 
+            onClick={onExit}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 hover:bg-white/5 transition-all group"
+          >
+            <span className="text-xs font-bold uppercase tracking-widest text-white/40 group-hover:text-white">View Store</span>
+            <ExternalLink className="w-4 h-4 text-white/20 group-hover:text-brand-coral" />
+          </button>
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-coral to-brand-gold p-[1px]">
+                <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[10px] font-bold">JD</div>
+              </div>
+              <div className="text-[10px] uppercase tracking-wider">
+                <p className="font-bold text-white">Jane Doe</p>
+                <p className="text-white/40">Owner</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="icon-xs" onClick={toggleTheme}>
+               {theme === 'dark' ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-grow p-10 overflow-y-auto">
+        <header className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-3xl font-serif font-bold mb-2">
+              {navItems.find(i => i.id === activeTab)?.label}
+            </h1>
+            <p className="text-white/40 text-sm">Welcome back, Jane. Here's what's happening today.</p>
+          </div>
+          <div className="flex gap-4">
+            <Button className="bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl px-6">
+              Download Report
+            </Button>
+            <Button className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-xl px-6 flex gap-2">
+              <Plus className="w-4 h-4" /> Add Product
+            </Button>
+          </div>
+        </header>
+
+        <AnimatePresence mode="wait">
+          {activeTab === 'overview' && (
+            <motion.div 
+              key="overview"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-10"
+            >
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {stats.map((stat, i) => (
+                  <div key={i} className="glass-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group">
+                    <div className="relative z-10 flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div className="p-3 rounded-2xl bg-white/5 text-brand-coral group-hover:bg-brand-coral group-hover:text-white transition-all duration-500">
+                          <stat.icon className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-brand-coral bg-brand-coral/10 px-2 py-1 rounded-full flex items-center gap-1">
+                          {stat.change} <ArrowUpRight className="w-3 h-3" />
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-white/40 text-xs uppercase tracking-widest font-bold mb-1">{stat.label}</p>
+                        <p className="text-2xl font-serif font-bold">{stat.value}</p>
+                      </div>
+                    </div>
+                    <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-32 h-32 bg-brand-coral/5 blur-3xl rounded-full" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Charts & Recent Activity */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 glass-dark p-8 rounded-[2rem] border border-white/5">
+                  <div className="flex justify-between items-center mb-8">
+                    <h3 className="font-serif text-xl font-bold">Revenue Analytics</h3>
+                    <select className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white/60 outline-none">
+                      <option>Last 7 Days</option>
+                      <option>Last 30 Days</option>
+                    </select>
+                  </div>
+                  <div className="h-[300px] flex items-end gap-3 px-4">
+                    {[40, 70, 45, 90, 65, 80, 50].map((height, i) => (
+                      <div key={i} className="flex-grow flex flex-col items-center gap-4 group">
+                        <motion.div 
+                          initial={{ height: 0 }}
+                          animate={{ height: `${height}%` }}
+                          transition={{ delay: i * 0.1, duration: 1 }}
+                          className="w-full bg-gradient-to-t from-brand-coral/20 to-brand-coral rounded-t-xl relative"
+                        >
+                          <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-brand-coral text-white text-[10px] font-bold px-2 py-1 rounded">
+                            ₦{(height * 10).toLocaleString()}k
+                          </div>
+                        </motion.div>
+                        <span className="text-[10px] font-bold text-white/20 uppercase tracking-tighter">Day {i + 1}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="glass-dark p-8 rounded-[2rem] border border-white/5">
+                  <h3 className="font-serif text-xl font-bold mb-8">Recent Orders</h3>
+                  <div className="space-y-6">
+                    {recentOrders.map((order, i) => (
+                      <div key={i} className="flex items-center justify-between group">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-[10px] font-bold text-brand-coral">
+                            {order.id.slice(1, 4)}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold">{order.customer}</p>
+                            <p className="text-[10px] text-white/40 uppercase tracking-widest">{order.product}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-brand-coral">{order.total}</p>
+                          <p className={cn(
+                            "text-[8px] uppercase font-black tracking-[0.2em]",
+                            order.status === 'Delivered' ? "text-green-400" : order.status === 'Shipped' ? "text-blue-400" : "text-brand-gold"
+                          )}>{order.status}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="ghost" className="w-full text-white/40 hover:text-brand-coral text-[10px] uppercase tracking-widest font-bold pt-4 border-t border-white/5">
+                      View All Orders
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'products' && (
+             <motion.div 
+               key="products"
+               initial={{ opacity: 0, x: 20 }}
+               animate={{ opacity: 1, x: 0 }}
+               className="glass-dark rounded-[2rem] border border-white/5 overflow-hidden"
+             >
+               <table className="w-full text-left">
+                 <thead className="bg-white/5">
+                   <tr className="text-[10px] uppercase tracking-[0.2em] font-bold text-white/40">
+                     <th className="px-8 py-6">Product</th>
+                     <th className="px-8 py-6">Category</th>
+                     <th className="px-8 py-6">Price</th>
+                     <th className="px-8 py-6">Stock</th>
+                     <th className="px-8 py-6">Status</th>
+                     <th className="px-8 py-6 text-right">Actions</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-white/5">
+                   {products.map((product) => (
+                     <tr key={product.id} className="group hover:bg-white/[0.02] transition-colors">
+                       <td className="px-8 py-5">
+                         <div className="flex items-center gap-4">
+                           <div className="w-12 h-12 rounded-xl bg-white/5 overflow-hidden p-1">
+                             <img src={product.image} alt={product.name} className="w-full h-full object-cover rounded-lg" />
+                           </div>
+                           <span className="text-sm font-bold truncate max-w-[200px]">{product.name}</span>
+                         </div>
+                       </td>
+                       <td className="px-8 py-5">
+                         <span className="text-[10px] uppercase tracking-widest bg-white/5 px-3 py-1.5 rounded-full text-white/60">
+                           {product.category}
+                         </span>
+                       </td>
+                       <td className="px-8 py-5 font-bold text-sm">₦{product.price.toLocaleString()}</td>
+                       <td className="px-8 py-5">
+                         <div className="flex items-center gap-2">
+                           <div className="w-24 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                             <div 
+                               className={cn("h-full rounded-full", product.stock < 5 ? "bg-red-500" : "bg-brand-coral")} 
+                               style={{ width: `${Math.min(100, (product.stock / 20) * 100)}%` }} 
+                             />
+                           </div>
+                           <span className="text-[10px] font-bold text-white/40">{product.stock}</span>
+                         </div>
+                       </td>
+                       <td className="px-8 py-5">
+                         <span className={cn(
+                           "text-[8px] uppercase font-black tracking-widest px-2 py-1 rounded-md",
+                           product.stock > 0 ? "text-green-400 bg-green-400/10" : "text-red-400 bg-red-400/10"
+                         )}>
+                           {product.stock > 0 ? 'Active' : 'Out of Stock'}
+                         </span>
+                       </td>
+                       <td className="px-8 py-5 text-right">
+                         <button className="p-2 text-white/20 hover:text-white transition-colors">
+                           <MoreVertical className="w-4 h-4" />
+                         </button>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+               <div className="p-6 text-center">
+                 <p className="text-[10px] uppercase tracking-widest text-white/20">Showing {products.length} Products</p>
+               </div>
+             </motion.div>
+          )}
+
+          {['orders', 'customers', 'discounts'].includes(activeTab) && (
+            <motion.div 
+              key="placeholder"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-40 glass-dark rounded-[3rem] border border-dashed border-white/10"
+            >
+              <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 relative">
+                 <div className="absolute inset-0 rounded-full border-2 border-brand-coral/20 animate-ping" />
+                 <LayoutDashboard className="w-8 h-8 text-brand-coral" />
+              </div>
+              <h3 className="text-2xl font-serif font-bold mb-2">Section Under Development</h3>
+              <p className="text-white/40 text-sm max-w-xs text-center">We're crafting a premium experience for your {activeTab} management.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
     </div>
   );
 }
