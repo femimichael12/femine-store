@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Toaster } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import { 
   LayoutDashboard, 
   Package, 
@@ -13,21 +13,61 @@ import {
   ExternalLink,
   Plus,
   Sun,
-  Moon
+  Moon,
+  Trash2,
+  X
 } from 'lucide-react';
 import { Product } from './types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 interface AdminDashboardProps {
   onExit: () => void;
   theme: string;
   toggleTheme: () => void;
   products: Product[];
+  refreshProducts: () => Promise<void>;
 }
 
-export default function AdminDashboard({ onExit, theme, toggleTheme, products }: AdminDashboardProps) {
+export default function AdminDashboard({ onExit, theme, toggleTheme, products, refreshProducts }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Partial<Product>>({
+    name: '', price: 0, category: 'Beauty', image: '', description: '', stock: 0, sizes: ['Standard'], colors: []
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveProduct = async () => {
+    try {
+      setIsSaving(true);
+      const id = editingProduct.id || Date.now().toString();
+      const productToSave = { ...editingProduct, id } as Product;
+      await setDoc(doc(db, "products", id), productToSave);
+      toast.success(editingProduct.id ? 'Product updated successfully' : 'Product created successfully');
+      setIsProductModalOpen(false);
+      await refreshProducts();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to save product');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (confirm("Are you sure you want to delete this product?")) {
+      try {
+        await deleteDoc(doc(db, "products", id));
+        toast.success("Product deleted");
+        await refreshProducts();
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to delete product");
+      }
+    }
+  };
   
   const stats = [
     { label: 'Total Revenue', value: '₦12,450,000', change: '+12.5%', icon: BarChart3 },
@@ -120,7 +160,13 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products }:
             <Button className="bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl px-6">
               Download Report
             </Button>
-            <Button className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-xl px-6 flex gap-2">
+            <Button 
+              className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-xl px-6 flex gap-2"
+              onClick={() => {
+                setEditingProduct({ name: '', price: 0, category: 'Beauty', image: '', description: '', stock: 0, sizes: ['Standard'], colors: [] });
+                setIsProductModalOpen(true);
+              }}
+            >
               <Plus className="w-4 h-4" /> Add Product
             </Button>
           </div>
@@ -272,9 +318,23 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products }:
                          </span>
                        </td>
                        <td className="px-8 py-5 text-right">
-                         <button className="p-2 text-white/20 hover:text-white transition-colors">
-                           <MoreVertical className="w-4 h-4" />
-                         </button>
+                         <div className="flex justify-end gap-2">
+                           <button 
+                             className="p-2 text-white/40 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest"
+                             onClick={() => {
+                               setEditingProduct(product);
+                               setIsProductModalOpen(true);
+                             }}
+                           >
+                             Edit
+                           </button>
+                           <button 
+                             className="p-2 text-red-400/60 hover:text-red-400 transition-colors"
+                             onClick={() => handleDeleteProduct(product.id)}
+                           >
+                             <Trash2 className="w-4 h-4" />
+                           </button>
+                         </div>
                        </td>
                      </tr>
                    ))}
@@ -286,6 +346,61 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products }:
              </motion.div>
           )}
         </AnimatePresence>
+
+        {isProductModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="glass-dark border border-white/10 rounded-[2rem] w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto relative bg-[#0a0a0a]">
+              <button 
+                onClick={() => setIsProductModalOpen(false)}
+                className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <h2 className="text-2xl font-serif font-bold mb-6">{editingProduct.id ? 'Edit Product' : 'Add New Product'}</h2>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Name</label>
+                    <input type="text" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.name || ''} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Category</label>
+                    <input type="text" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.category || ''} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Price (₦)</label>
+                    <input type="number" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.price || 0} onChange={(e) => setEditingProduct({...editingProduct, price: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Stock</label>
+                    <input type="number" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.stock || 0} onChange={(e) => setEditingProduct({...editingProduct, stock: parseInt(e.target.value) || 0})} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Image URL</label>
+                  <input type="text" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.image || ''} onChange={(e) => setEditingProduct({...editingProduct, image: e.target.value})} />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Description</label>
+                  <textarea rows={3} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.description || ''} onChange={(e) => setEditingProduct({...editingProduct, description: e.target.value})} />
+                </div>
+                
+                <div className="pt-4 flex justify-end gap-3">
+                  <Button variant="ghost" onClick={() => setIsProductModalOpen(false)}>Cancel</Button>
+                  <Button className="bg-brand-coral text-white hover:bg-brand-coral/90" onClick={handleSaveProduct} disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Product'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
