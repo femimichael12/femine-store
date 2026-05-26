@@ -54,6 +54,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import AdminDashboard from './AdminDashboard';
 
+const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance', 'Tops', 'Bottoms'];
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -61,33 +63,36 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProducts = async () => {
-  try {
-    const querySnapshot = await getDocs(collection(db, "products"));
-    
-    if (!querySnapshot.empty) {
-      const productsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Product[];
-      setProducts(productsData);
-    } else {
-      // If Firebase collection is empty, load backup data instantly so your page isn't broken
-      console.log("Firebase 'products' collection is empty. Showing backup products.");
+    try {
+      const querySnapshot = await getDocs(collection(db, "products"));
+      
+      if (!querySnapshot.empty) {
+        const productsData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Product[];
+        setProducts(productsData);
+      } else {
+        // If Firebase collection is empty, load backup data instantly so your page isn't broken
+        console.log("Firebase 'products' collection is empty. Showing backup products.");
+        setProducts(localBackupProducts);
+      }
+    } catch (error) {
+      console.error("Error fetching products from Firebase, loading local backup instead:", error);
       setProducts(localBackupProducts);
+    } finally {
+      setIsLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching products from Firebase, loading local backup instead:", error);
-    setProducts(localBackupProducts);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    const saved = localStorage.getItem('cart');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -118,6 +123,10 @@ export default function App() {
       setSelectedColor(selectedProduct.colors[0]?.name || '');
     }
   }, [selectedProduct]);
+
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -366,9 +375,6 @@ export default function App() {
                     <span className="text-2xl font-serif tracking-tighter font-bold text-white">FEMINÉ</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-coral group-hover:scale-150 transition-transform" />
                   </div>
-                  <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-all">
-                    <X className="w-5 h-5 text-white/70" />
-                  </button>
                 </SheetHeader>
 
                 <div className="mb-8 relative">
@@ -409,7 +415,7 @@ export default function App() {
                     <div className="space-y-6 pt-6 border-t border-white/5">
                       <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/40">Shop By Category</p>
                       <div className="grid grid-cols-1 gap-5">
-                        {['Skincare', 'Makeup', 'Haircare', 'Dresses', 'Bags', 'Shoes', 'Perfumes'].map((cat, i) => (
+                        {STORE_CATEGORIES.filter(c => c !== 'All').map((cat, i) => (
                            <motion.button
                             key={cat}
                             initial={{ opacity: 0, y: 10 }}
@@ -454,7 +460,7 @@ export default function App() {
         </div>
 
         <div className="hidden lg:flex items-center gap-10 text-[10px] uppercase tracking-[0.3em] font-bold">
-          {['All', 'Footwear', 'Beauty', 'Fragrance'].map(cat => (
+          {STORE_CATEGORIES.map(cat => (
             <button 
               key={cat}
               onClick={() => setSelectedCategory(cat)}
@@ -657,7 +663,7 @@ export default function App() {
                         <AnimatePresence initial={false}>
                           {cart.map((item, idx) => (
                             <motion.div 
-                              key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${idx}`}
+                              key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}`}
                               layout="position"
                               initial={{ opacity: 0, scale: 0.95, y: 20 }}
                               animate={{ opacity: 1, scale: 1, y: 0 }}

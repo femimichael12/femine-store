@@ -23,6 +23,8 @@ import { cn } from '@/lib/utils';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from './firebase';
 
+const VALID_CATEGORIES = ['Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance', 'Tops', 'Bottoms'];
+
 interface AdminDashboardProps {
   onExit: () => void;
   theme: string;
@@ -40,6 +42,11 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products, r
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveProduct = async () => {
+    if (!editingProduct.name || !editingProduct.image || !editingProduct.price) {
+      toast.error('Missing Information', { description: 'Please fill in name, price, and image URL.' });
+      return;
+    }
+
     try {
       setIsSaving(true);
       const id = editingProduct.id || Date.now().toString();
@@ -113,9 +120,7 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products, r
                   "w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group",
                   activeTab === item.id 
                     ? "bg-brand-coral text-white shadow-lg shadow-brand-coral/20" 
-                    : "text-white/40 hover:text-white hover:bg-white/5"
-                )}
-              >
+                    : "text-white/40 hover:text-white hover:bg-white/5")}>
                 <item.icon className={cn("w-5 h-5", activeTab === item.id ? "text-white" : "group-hover:text-brand-coral")} />
                 <span className="text-sm font-medium tracking-wide">{item.label}</span>
               </button>
@@ -366,7 +371,13 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products, r
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Category</label>
-                    <input type="text" className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral" value={editingProduct.category || ''} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} />
+                    <select 
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-brand-coral text-white appearance-none"
+                      value={editingProduct.category || 'Beauty'} 
+                      onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
+                    >
+                      {VALID_CATEGORIES.map(cat => <option key={cat} value={cat} className="bg-[#0a0a0a]">{cat}</option>)}
+                    </select>
                   </div>
                 </div>
                 
