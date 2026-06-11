@@ -18,9 +18,10 @@ import {
   X
 } from 'lucide-react';
 import { Product } from './types';
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 import { db } from './firebase';
 
 const VALID_CATEGORIES = ['Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance', 'Tops', 'Bottoms'];
@@ -31,9 +32,10 @@ interface AdminDashboardProps {
   toggleTheme: () => void;
   products: Product[];
   refreshProducts: () => Promise<void>;
+  user: User | null;
 }
 
-export default function AdminDashboard({ onExit, theme, toggleTheme, products, refreshProducts }: AdminDashboardProps) {
+export default function AdminDashboard({ onExit, theme, toggleTheme, products, refreshProducts, user }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product>>({
@@ -139,11 +141,11 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products, r
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-coral to-brand-gold p-[1px]">
-                <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[10px] font-bold">JD</div>
+                <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[10px] font-bold">{user?.displayName?.split(' ').map(n => n[0]).join('') || 'AD'}</div>
               </div>
               <div className="text-[10px] uppercase tracking-wider">
-                <p className="font-bold text-white">Jane Doe</p>
-                <p className="text-white/40">Owner</p>
+                <p className="font-bold text-white truncate max-w-[100px]">{user?.displayName || 'Administrator'}</p>
+                <p className="text-white/40">Admin Access</p>
               </div>
             </div>
             <Button variant="ghost" size="icon" onClick={toggleTheme}>
@@ -159,7 +161,7 @@ export default function AdminDashboard({ onExit, theme, toggleTheme, products, r
             <h1 className="text-3xl font-serif font-bold mb-2">
               {navItems.find(i => i.id === activeTab)?.label}
             </h1>
-            <p className="text-white/40 text-sm">Welcome back, Jane. Here's what's happening today.</p>
+            <p className="text-white/40 text-sm">Welcome back, {user?.displayName?.split(' ')[0] || 'Admin'}. Here's what's happening today.</p>
           </div>
           <div className="flex gap-4">
             <Button className="bg-white/5 border border-white/10 text-white hover:bg-white/10 rounded-xl px-6">

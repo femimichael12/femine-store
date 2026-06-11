@@ -1,14 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast, Toaster } from 'sonner';
 import { usePaystackPayment } from 'react-paystack';
-import { 
-  ShoppingBag, 
-  Search, 
-  Menu, 
-  X, 
-  ChevronRight, 
-  Star, 
+import {
+  ShoppingBag,
+  Search,
+  Menu,
+  X,
+  ChevronRight,
+  Star,
   ArrowRight,
   Clock,
   Timer,
@@ -24,54 +24,81 @@ import {
   CheckCircle2,
   Truck,
   Lock,
-  Loader2
-  
+  Loader2,
 } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from './firebase';
+
+import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut, 
+  User 
+} from 'firebase/auth';
+import { db, auth } from './firebase';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Product, CartItem } from './types';
-import { Button, buttonVariants } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from '@/components/ui/badge';
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
+
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
-  SheetFooter
+  SheetFooter,
 } from '@/components/ui/sheet';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle 
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
+
 import { products as localBackupProducts } from './data';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import AdminDashboard from './AdminDashboard';
 
-const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance', 'Tops', 'Bottoms'];
+const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance'];
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const fetchProducts = async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "products"));
       
       if (!querySnapshot.empty) {
-        const productsData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Product[];
-        setProducts(productsData);
+        const productsData = querySnapshot.docs
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Product[];
+
+        // Filter out any corrupt or incomplete Firestore documents
+        const validProducts = productsData.filter(
+          (p) => p.name && p.image && p.price && p.price > 0
+        );
+
+        if (validProducts.length > 0) {
+          setProducts(validProducts);
+        } else {
+          // All docs were corrupt — fall back to local data
+          console.warn("All Firestore products were invalid. Using local backup.");
+          setProducts(localBackupProducts);
+        }
       } else {
         // If Firebase collection is empty, load backup data instantly so your page isn't broken
         console.log("Firebase 'products' collection is empty. Showing backup products.");
@@ -82,6 +109,49 @@ export default function App() {
       setProducts(localBackupProducts);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Authentication and Role Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        setCustomerEmail(currentUser.email || '');
+        
+        // Check for admin status in Firestore
+        try {
+          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDoc.exists()) {
+            setIsAdmin(userDoc.data().role === 'admin');
+          } else {
+            // Initialize user profile if first time login
+            await setDoc(doc(db, "users", currentUser.uid), {
+              email: currentUser.email,
+              role: 'customer',
+              createdAt: new Date().toISOString()
+            });
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          console.error("Error checking user role:", error);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      toast.success("Welcome to Feminé");
+    } catch (error) {
+      console.error("Login failed:", error);
+      toast.error("Authentication failed");
     }
   };
 
@@ -216,6 +286,7 @@ export default function App() {
     {
       title: "Clinical Luxury",
       subtitle: "Experience the harmony of modern clinical science and ancient herbal wisdom.",
+      zlabel: "Verified Quality",
       label: "Verified Quality",
       image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&q=80&w=1200",
       color: "bg-brand-gold/10"
@@ -237,13 +308,22 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const filteredProducts = useMemo(() => {
-    return products.filter(p => {
-      const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [selectedCategory, searchQuery, products]);
+const filteredProducts = useMemo(() => {
+  return (products || []).filter((p) => {
+    // Skip any product that is missing essential display fields
+    const isValid = !!(p.name && p.image && p.price && p.price > 0);
+
+    const matchesCategory =
+      selectedCategory === 'All' || p.category === selectedCategory;
+
+    const matchesSearch =
+      (p.name?.toLowerCase() || "").includes(
+        (searchQuery || "").toLowerCase()
+      );
+
+    return isValid && matchesCategory && matchesSearch;
+  });
+}, [selectedCategory, searchQuery, products]);
 
   const addToCart = (product: Product, size: string, color: string, qty = 1) => {
     setCart(prev => {
@@ -291,7 +371,8 @@ export default function App() {
   const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  const formatPrice = (price: number) => `₦${price.toLocaleString()}`;
+  const formatPrice = (price?: number) =>
+  `₦${(price ?? 0).toLocaleString()}`;
 
   const config = useMemo(() => ({
     reference: (new Date()).getTime().toString(),
@@ -330,10 +411,24 @@ export default function App() {
   };
 
   if (location.pathname === '/admin') {
-    return <AdminDashboard onExit={() => navigate('/')} theme={theme} toggleTheme={toggleTheme} products={products} refreshProducts={fetchProducts} />;
+    if (isAuthLoading) {
+      return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-brand-coral" /></div>;
+    }
+    
+    if (!isAdmin) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background text-center p-6">
+          <AlertCircle className="w-12 h-12 text-destructive mb-4" />
+          <h1 className="text-2xl font-serif font-bold mb-2">Access Denied</h1>
+          <p className="text-muted-foreground mb-6">You do not have permission to view the administrative dashboard.</p>
+          <Button onClick={() => navigate('/')}>Return Home</Button>
+        </div>
+      );
+    }
+    return <AdminDashboard onExit={() => navigate('/')} theme={theme} toggleTheme={toggleTheme} products={products} refreshProducts={fetchProducts} user={user} />;
   }
 
-  if (isLoading) {
+  if (isLoading || isAuthLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-brand-coral" /></div>;
   }
 
@@ -437,10 +532,16 @@ export default function App() {
                 </ScrollArea>
 
                 <div className="mt-auto pt-8 border-t border-white/10 space-y-8">
-                  <Button className="w-full bg-white text-brand-maroon hover:bg-brand-coral hover:text-white rounded-2xl py-6 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
-                    Login / Sign Up
-                  </Button>
-                  
+                  {user ? (
+                    <Button onClick={() => signOut(auth)} className="w-full bg-white text-brand-maroon hover:bg-brand-coral hover:text-white rounded-2xl py-6 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
+                      Sign Out
+                    </Button>
+                  ) : (
+                    <Button onClick={login} className="w-full bg-white text-brand-maroon hover:bg-brand-coral hover:text-white rounded-2xl py-6 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
+                      Login / Sign Up
+                    </Button>
+                  )}
+
                   <div className="flex justify-center gap-8 text-white/40">
                     {['Instagram', 'Pinterest', 'Facebook', 'TikTok'].map(social => (
                       <button key={social} className="hover:text-brand-coral transition-colors">
@@ -603,7 +704,7 @@ export default function App() {
           
           <Sheet>
             <SheetTrigger
-              className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative group")}
+              className={cn("relative group")}
             >
               <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
               <AnimatePresence>
@@ -1034,9 +1135,10 @@ export default function App() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.4, delay: idx * 0.05 }}
+                className="h-full"
               >
                 <Card 
-                  className="group border-none glass hover:bg-background transition-all duration-700 rounded-[2.5rem] overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(74,29,29,0.15)] hover:-translate-y-2 cursor-pointer"
+                  className="group border-none glass hover:bg-background transition-all duration-700 rounded-[2.5rem] overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(74,29,29,0.15)] hover:-translate-y-2 cursor-pointer h-full"
                   onClick={() => setSelectedProduct(product)}
                 >
                   <CardContent className="p-0">
@@ -1216,7 +1318,7 @@ export default function App() {
                           <span className="text-[9px] uppercase tracking-widest font-bold">Size</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {selectedProduct.sizes.map(size => (
+                          {selectedProduct?.sizes?.map(size => (
                             <button 
                               key={size} 
                               onClick={() => setSelectedSize(size)}

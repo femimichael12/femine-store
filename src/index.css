@@ -10,6 +10,8 @@
   --brand-gold: #dcca98;
   --brand-beige: #f5f5f0;
   --brand-maroon: #4a1d1d;
+  --brand-pink: #fde8f0;
+  --brand-muted: #f5efe8;
   --primary: #ff7f50;
   --primary-foreground: #ffffff;
   --secondary: #fbe7e9;
@@ -33,6 +35,8 @@
   --brand-gold: #c2ac6a;
   --brand-beige: #121010;
   --brand-maroon: #2d0e0e; /* Still dark maroon, but darker */
+  --brand-pink: #2a1020;
+  --brand-muted: #1a1510;
   --primary: #ff8c61;
   --primary-foreground: #0a0808;
   --secondary: #1a0f10;
@@ -60,6 +64,8 @@
   --color-brand-gold: var(--brand-gold);
   --color-brand-beige: var(--brand-beige);
   --color-brand-maroon: var(--brand-maroon);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-muted: var(--brand-muted);
   
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
