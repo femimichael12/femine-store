@@ -1,20 +1,40 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# FEMINÉ
 
-# Run and deploy your AI Studio app
+FEMINÉ is a modern luxury fashion and beauty e-commerce website designed with a premium, elegant user experience. The platform showcases curated collections of fashion, skincare, beauty, accessories, footwear, and fragrances through a clean, responsive interface.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/19b5b514-493a-42f8-8d0c-ecb2c2ad7c06
+- Premium luxury-inspired UI
+- Responsive design for desktop, tablet, and mobile
+- Dark and Light mode
+- Product collections with category filtering
+- Search functionality
+- Shopping cart
+- Modern animations and smooth transitions
+- Flash sale and promotional banners
+- Elegant typography and premium design system
 
-## Run Locally
+## Tech Stack
 
-**Prerequisites:**  Node.js
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Framer Motion
 
+## Getting Started
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm install
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## License
+
+This project is for educational and portfolio purposes.
