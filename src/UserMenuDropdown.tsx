@@ -21,6 +21,7 @@ interface UserMenuDropdownProps {
   theme: string;
   onNavigate: (path: string) => void;
   onOpenAccountDrawer: () => void;
+  onOpenInstallModal?: () => void;
 }
 
 export default function UserMenuDropdown({
@@ -28,7 +29,8 @@ export default function UserMenuDropdown({
   isAdmin,
   theme,
   onNavigate,
-  onOpenAccountDrawer
+  onOpenAccountDrawer,
+  onOpenInstallModal
 }: UserMenuDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [canInstallPWA, setCanInstallPWA] = useState(false);
@@ -183,14 +185,20 @@ export default function UserMenuDropdown({
                 </button>
               )}
 
-              {canInstallPWA && (
+              {!isPWAStandalone() && (
                 <button
                   role="menuitem"
                   onClick={async () => {
                     setIsOpen(false);
-                    const installed = await triggerPWAInstall();
-                    if (installed) {
-                      toast.success("FEMINÉ App installed successfully!");
+                    if (canInstallPWA) {
+                      const installed = await triggerPWAInstall();
+                      if (installed) {
+                        toast.success("FEMINÉ App installed successfully!");
+                        return;
+                      }
+                    }
+                    if (onOpenInstallModal) {
+                      onOpenInstallModal();
                     }
                   }}
                   className={cn(

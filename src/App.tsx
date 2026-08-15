@@ -74,6 +74,7 @@ import OrdersPage from './OrdersPage';
 import WishlistPage from './WishlistPage';
 import AccountPage from './AccountPage';
 import PWAInstallPrompt from './PWAInstallPrompt';
+import PWAInstallModal from './PWAInstallModal';
 
 const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance'];
 
@@ -86,6 +87,7 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
+  const [isPWAInstallModalOpen, setIsPWAInstallModalOpen] = useState(false);
 
   const getCombinedProducts = useCallback((baseProducts: Product[]) => {
     try {
@@ -870,6 +872,7 @@ const filteredProducts = useMemo(() => {
               theme={theme} 
               onNavigate={(path) => navigate(path)} 
               onOpenAccountDrawer={() => setIsAccountDrawerOpen(true)} 
+              onOpenInstallModal={() => setIsPWAInstallModalOpen(true)}
             />
           ) : (
             <button
@@ -1821,6 +1824,13 @@ const filteredProducts = useMemo(() => {
 
       {/* Luxury PWA Installation Prompt Banner */}
       <PWAInstallPrompt theme={theme} />
+
+      {/* Step-by-Step PWA Installation Guide Modal */}
+      <PWAInstallModal 
+        isOpen={isPWAInstallModalOpen} 
+        onClose={() => setIsPWAInstallModalOpen(false)} 
+        theme={theme} 
+      />
     </div>
   );
 }
