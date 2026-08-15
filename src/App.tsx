@@ -407,8 +407,10 @@ const filteredProducts = useMemo(() => {
     }
 
     setIsPaymentLoading(true);
-    initializePayment(onSuccess, onClose);
-  };
+  };initializePayment({
+  onSuccess,
+  onClose,
+});
 
   if (location.pathname === '/admin') {
     if (isAuthLoading) {
