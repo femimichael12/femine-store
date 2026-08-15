@@ -593,17 +593,19 @@ const filteredProducts = useMemo(() => {
             >
               <Menu className={cn("w-5 h-5", theme === 'dark' ? "text-white" : "text-brand-maroon")} />
             </SheetTrigger>
-            <SheetContent side="left" className="w-[320px] p-0 border-none glass-dark text-white overflow-hidden flex flex-col">
-              <div className="p-8 flex flex-col h-full">
-                <SheetHeader className="flex flex-row items-center justify-between space-y-0 mb-10">
-                  <div className="flex items-center gap-1 group">
+            <SheetContent side="left" className="w-[320px] max-w-[85vw] p-0 border-none glass-dark text-white overflow-hidden flex flex-col h-full max-h-screen">
+              <div className="flex flex-col h-full bg-black/85 backdrop-blur-2xl overflow-hidden p-6 md:p-8">
+                {/* Header (Pinned Top) */}
+                <SheetHeader className="flex flex-row items-center justify-between space-y-0 mb-6 shrink-0">
+                  <div className="flex items-center gap-1 group cursor-pointer" onClick={() => setIsMobileMenuOpen(false)}>
                     <span className="text-2xl font-serif tracking-tighter font-bold text-white">FEMINÉ</span>
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-coral group-hover:scale-150 transition-transform" />
                   </div>
                 </SheetHeader>
 
-                <div className="mb-8 relative">
-                   <div className="flex items-center bg-white/10 px-4 py-3 rounded-2xl border border-white/10">
+                {/* Search Bar (Pinned Top) */}
+                <div className="mb-6 relative shrink-0">
+                  <div className="flex items-center bg-white/10 px-4 py-3 rounded-2xl border border-white/10">
                     <Search className="w-4 h-4 mr-3 text-white/40" />
                     <input 
                       type="text" 
@@ -615,79 +617,91 @@ const filteredProducts = useMemo(() => {
                   </div>
                 </div>
 
-                <ScrollArea className="flex-grow -mx-4 px-4 pr-10">
-                  <div className="space-y-12 pb-10">
-                    {/* Main Nav */}
-                    <div className="flex flex-col gap-6">
-                      {['Home', 'Shop', 'New Arrivals', 'Best Sellers', 'Beauty', 'Fashion', 'Accessories', 'Wishlist', 'Cart', 'Orders', 'Contact'].map((item, i) => (
+                {/* Scrollable Navigation Body */}
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-8 pr-1 scrollbar-thin scrollbar-thumb-white/20">
+                  {/* Main Nav Items */}
+                  <div className="flex flex-col gap-4">
+                    {['Home', 'Shop', 'New Arrivals', 'Best Sellers', 'Beauty', 'Fashion', 'Accessories', 'Wishlist', 'Cart', 'Orders', 'Contact'].map((item, i) => (
+                      <motion.button
+                        key={item}
+                        initial={{ opacity: 0, x: -15 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        className="text-left group flex items-center justify-between cursor-pointer py-1"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          if (item === 'Wishlist') navigate('/wishlist');
+                          else if (item === 'Orders') navigate('/orders');
+                          else if (item === 'Home') navigate('/');
+                          else {
+                            const el = document.getElementById('products');
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }
+                        }}
+                      >
+                        <span className="text-base font-light tracking-wide group-hover:text-brand-coral group-hover:translate-x-2 transition-all duration-300">
+                          {item}
+                        </span>
+                        <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all text-brand-coral" />
+                      </motion.button>
+                    ))}
+                  </div>
+
+                  {/* Categories */}
+                  <div className="space-y-4 pt-6 border-t border-white/10">
+                    <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/40">Shop By Category</p>
+                    <div className="grid grid-cols-1 gap-3.5 pb-4">
+                      {STORE_CATEGORIES.filter(c => c !== 'All').map((cat, i) => (
                         <motion.button
-                          key={item}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className="text-left group flex items-center justify-between"
-                          onClick={() => setIsMobileMenuOpen(false)}
+                          key={cat}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.2 + (i * 0.03) }}
+                          className="text-left text-sm text-white/70 hover:text-white transition-colors flex items-center gap-3 cursor-pointer"
+                          onClick={() => {
+                            setSelectedCategory(cat);
+                            setIsMobileMenuOpen(false);
+                            const el = document.getElementById('products');
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }}
                         >
-                          <span className="text-lg font-light tracking-wide group-hover:text-brand-coral group-hover:translate-x-2 transition-all duration-300">
-                            {item}
-                          </span>
-                          <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all text-brand-coral" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-coral/40" />
+                          <span>{cat}</span>
                         </motion.button>
                       ))}
                     </div>
-
-                    {/* Categories */}
-                    <div className="space-y-6 pt-6 border-t border-white/5">
-                      <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/40">Shop By Category</p>
-                      <div className="grid grid-cols-1 gap-5">
-                        {STORE_CATEGORIES.filter(c => c !== 'All').map((cat, i) => (
-                           <motion.button
-                            key={cat}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.5 + (i * 0.05) }}
-                            className="text-left text-sm text-white/70 hover:text-white transition-colors flex items-center gap-3"
-                            onClick={() => {
-                              setSelectedCategory(cat);
-                              setIsMobileMenuOpen(false);
-                            }}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-brand-coral/40" />
-                            {cat}
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
                   </div>
-                </ScrollArea>
+                </div>
 
-                <div className="mt-auto pt-8 border-t border-white/10 space-y-8">
+                {/* Footer Actions (Pinned Bottom) */}
+                <div className="pt-6 border-t border-white/10 space-y-4 shrink-0 mt-auto">
                   {user ? (
-                    <div className="flex flex-col gap-3 w-full">
-                      <Button onClick={() => { setIsMobileMenuOpen(false); setIsAccountDrawerOpen(true); }} className="w-full bg-brand-coral text-white hover:bg-brand-coral/90 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl flex items-center justify-center gap-2">
+                    <div className="flex flex-col gap-2.5 w-full">
+                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/account'); }} className="w-full bg-brand-coral text-white hover:bg-brand-coral/90 rounded-2xl py-4 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl flex items-center justify-center gap-2 cursor-pointer">
                         <UserIcon className="w-4 h-4" />
                         <span>My Account</span>
                       </Button>
-                      <Button onClick={() => { setIsMobileMenuOpen(false); signOut(auth); toast.success("Signed Out"); }} variant="outline" className="w-full bg-white/10 text-white hover:bg-white/20 border-white/20 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all">
-                        Sign Out
+                      <Button onClick={async () => { setIsMobileMenuOpen(false); await signOut(auth); toast.success("Signed Out"); }} variant="outline" className="w-full bg-white/5 text-white hover:bg-white/15 border-white/20 rounded-2xl py-4 uppercase tracking-widest text-[10px] font-bold transition-all flex items-center justify-center gap-2 cursor-pointer">
+                        <LogOut className="w-4 h-4" />
+                        <span>Sign Out</span>
                       </Button>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-3 w-full">
-                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/login'); }} className="w-full bg-brand-coral text-white hover:bg-brand-coral/90 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
+                    <div className="grid grid-cols-2 gap-3 w-full">
+                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/login'); }} className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-2xl py-4 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl cursor-pointer">
                         Log In
                       </Button>
-                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/signup'); }} variant="outline" className="w-full bg-white/10 text-white hover:bg-white/20 border-white/20 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all">
-                        Create Account
+                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/signup'); }} variant="outline" className="bg-white/5 border-white/20 text-white hover:bg-white/15 rounded-2xl py-4 uppercase tracking-widest text-[10px] font-bold transition-all cursor-pointer">
+                        Sign Up
                       </Button>
                     </div>
                   )}
 
-                  <div className="flex justify-center gap-8 text-white/40">
+                  <div className="flex justify-center gap-6 text-white/40 pt-1">
                     {['Instagram', 'Pinterest', 'Facebook', 'TikTok'].map(social => (
                       <button key={social} className="hover:text-brand-coral transition-colors">
                         <span className="sr-only">{social}</span>
-                        <div className="w-2.5 h-2.5 bg-current rounded-full" />
+                        <div className="w-2 h-2 bg-current rounded-full" />
                       </button>
                     ))}
                   </div>
