@@ -25,6 +25,7 @@ import {
   Truck,
   Lock,
   Loader2,
+  LogOut,
   User as UserIcon,
 } from 'lucide-react';
 

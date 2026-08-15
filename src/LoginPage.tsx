@@ -50,15 +50,19 @@ export default function LoginPage({ onExit, onNavigateToSignUp, theme, toggleThe
       const user = result.user;
 
       // Sync user doc in Firestore if not exists
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        await setDoc(userRef, {
-          email: user.email,
-          displayName: user.displayName || '',
-          role: 'customer',
-          createdAt: new Date().toISOString()
-        });
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) {
+          await setDoc(userRef, {
+            email: user.email,
+            displayName: user.displayName || '',
+            role: 'customer',
+            createdAt: new Date().toISOString()
+          });
+        }
+      } catch (docErr) {
+        console.warn("Firestore Google user record notice:", docErr);
       }
 
       toast.success(`Welcome to Feminé, ${user.displayName || 'Luxury Guest'}`);
