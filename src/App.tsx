@@ -123,8 +123,7 @@ export default function App() {
         loaded = localBackupProducts;
       }
       setProducts(getCombinedProducts(loaded));
-    } catch (error) {
-      console.error("Error fetching products:", error);
+    } catch {
       setProducts(getCombinedProducts(localBackupProducts));
     } finally {
       setIsLoading(false);
@@ -154,20 +153,11 @@ export default function App() {
             const isUserAdmin = role === 'admin' || currentUser.email === 'ademusiwamichael1@gmail.com';
             setIsAdmin(isUserAdmin);
           } else {
-            // Initialize user profile if first time login
             const isUserAdmin = currentUser.email === 'ademusiwamichael1@gmail.com';
-            await setDoc(doc(db, "users", currentUser.uid), {
-              email: currentUser.email,
-              role: isUserAdmin ? 'admin' : 'customer',
-              createdAt: new Date().toISOString()
-            });
             setIsAdmin(isUserAdmin);
           }
-        } catch (error) {
-          console.error("Error checking user role:", error);
-          if (currentUser.email === 'ademusiwamichael1@gmail.com') {
-            setIsAdmin(true);
-          }
+        } catch {
+          setIsAdmin(currentUser.email === 'ademusiwamichael1@gmail.com');
         }
       } else {
         setIsAdmin(false);
@@ -1812,7 +1802,6 @@ const filteredProducts = useMemo(() => {
               <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-2 w-auto" />
               <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-4 w-auto" />
               <img src="https://paystack.com/assets/img/login/paystack-logo.png" alt="Paystack" className="h-2 w-auto" />
-              <img src="https://flutterwave.com/images/logo/logo-primary.svg" alt="Flutterwave" className="h-2 w-auto" />
             </div>
             <div className="flex gap-8">
               <span>Handcrafted with Love</span>

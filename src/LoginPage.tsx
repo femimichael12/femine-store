@@ -61,8 +61,8 @@ export default function LoginPage({ onExit, onNavigateToSignUp, theme, toggleThe
             createdAt: new Date().toISOString()
           });
         }
-      } catch (docErr) {
-        console.warn("Firestore Google user record notice:", docErr);
+      } catch {
+        // Fallback silently if Firestore rules restrict direct user document writes
       }
 
       toast.success(`Welcome to Feminé, ${user.displayName || 'Luxury Guest'}`);
