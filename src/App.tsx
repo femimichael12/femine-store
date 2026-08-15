@@ -1003,7 +1003,7 @@ const filteredProducts = useMemo(() => {
                   </AnimatePresence>
                 </div>
                 
-                <SheetFooter className="mt-auto p-4 md:p-5 bg-card/80 border-t border-white/10 backdrop-blur-md shrink-0">
+                <SheetFooter className="mt-auto p-4 md:p-5 bg-card/80 border-t border-white/10 backdrop-blur-md shrink-0 safe-pb">
                   <div className="w-full space-y-3">
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center text-xs text-muted-foreground">

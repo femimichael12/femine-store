@@ -110,7 +110,7 @@ export default function AccountDrawer({
           </div>
 
           {/* Footer - Sign Out */}
-          <div className="p-6 border-t border-white/10 bg-card/80 shrink-0">
+          <div className="p-6 border-t border-white/10 bg-card/80 shrink-0 safe-pb">
             <Button
               onClick={handleSignOut}
               className="w-full rounded-2xl py-6 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white uppercase tracking-widest text-[10px] font-bold transition-all flex items-center justify-center gap-2 border border-destructive/20 cursor-pointer"

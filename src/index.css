@@ -120,6 +120,21 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-linear-to-r from-brand-maroon to-brand-coral dark:from-brand-gold dark:to-brand-coral;
   }
+
+  /* Mobile Native PWA Safe-Area & Touch Utilities */
+  .safe-pt {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+  .safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .no-tap-highlight {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .touch-scroller {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
 }
 
 @import "tw-animate-css";
