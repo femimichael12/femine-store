@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="180" height="180">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#240f0f"/>
+      <stop offset="50%" stop-color="#150808"/>
+      <stop offset="100%" stop-color="#090303"/>
+    </linearGradient>
+    <linearGradient id="coralGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7f50"/>
+      <stop offset="100%" stop-color="#e76f51"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="url(#coralGrad)" stroke-opacity="0.2" stroke-width="3"/>
+
+  <!-- Emblem / Brand Mark -->
+  <g transform="translate(256, 230)" text-anchor="middle">
+    <!-- Big Luxury "F" Icon -->
+    <text x="-20" y="35" font-family="Georgia, 'Times New Roman', serif" font-size="240" font-weight="700" fill="#ffffff">F</text>
+    <circle cx="110" cy="10" r="24" fill="url(#coralGrad)"/>
+  </g>
+
+  <!-- Brand Text "FEMINÉ" -->
+  <text x="256" y="420" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="44" font-weight="700" fill="#ffffff" letter-spacing="14">FEMINÉ</text>
+</svg>

@@ -6,12 +6,14 @@ import {
   Heart, 
   LogOut, 
   ChevronDown, 
-  ShieldCheck 
+  ShieldCheck,
+  Download
 } from 'lucide-react';
 import { signOut, User } from 'firebase/auth';
 import { auth } from './firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { subscribePWAInstall, triggerPWAInstall, isPWAStandalone } from './pwaManager';
 
 interface UserMenuDropdownProps {
   user: User;
@@ -29,8 +31,15 @@ export default function UserMenuDropdown({
   onOpenAccountDrawer
 }: UserMenuDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [canInstallPWA, setCanInstallPWA] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    return subscribePWAInstall((canInstall) => {
+      setCanInstallPWA(canInstall && !isPWAStandalone());
+    });
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -171,6 +180,26 @@ export default function UserMenuDropdown({
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-brand-coral shrink-0" />
                   <span>Admin Dashboard</span>
+                </button>
+              )}
+
+              {canInstallPWA && (
+                <button
+                  role="menuitem"
+                  onClick={async () => {
+                    setIsOpen(false);
+                    const installed = await triggerPWAInstall();
+                    if (installed) {
+                      toast.success("FEMINÉ App installed successfully!");
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer text-left text-brand-coral border-t border-muted/15 mt-1 pt-2",
+                    isDark ? "hover:bg-brand-coral/20" : "hover:bg-brand-coral/10"
+                  )}
+                >
+                  <Download className="w-3.5 h-3.5 text-brand-coral shrink-0 animate-bounce-slow" />
+                  <span>Install FEMINÉ App</span>
                 </button>
               )}
             </div>
