@@ -518,11 +518,19 @@ const filteredProducts = useMemo(() => {
   }
 
   if (location.pathname === '/login') {
-    return <LoginPage onExit={() => navigate('/')} onNavigateToSignUp={() => navigate('/signup')} theme={theme} toggleTheme={toggleTheme} />;
+    if (user) {
+      navigate('/', { replace: true });
+      return null;
+    }
+    return <LoginPage onExit={() => navigate('/', { replace: true })} onNavigateToSignUp={() => navigate('/signup')} theme={theme} toggleTheme={toggleTheme} />;
   }
 
   if (location.pathname === '/signup') {
-    return <SignUpPage onExit={() => navigate('/')} onNavigateToLogin={() => navigate('/login')} theme={theme} toggleTheme={toggleTheme} />;
+    if (user) {
+      navigate('/', { replace: true });
+      return null;
+    }
+    return <SignUpPage onExit={() => navigate('/', { replace: true })} onNavigateToLogin={() => navigate('/login')} theme={theme} toggleTheme={toggleTheme} />;
   }
 
   if (location.pathname === '/orders') {
@@ -714,7 +722,7 @@ const filteredProducts = useMemo(() => {
           ))}
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 sm:gap-4 md:gap-6 shrink-0">
           <Button 
             variant="ghost" 
             size="icon" 
@@ -872,7 +880,7 @@ const filteredProducts = useMemo(() => {
 
           <Sheet>
             <SheetTrigger
-              className={cn("relative group")}
+              className={cn("relative group shrink-0 p-1")}
             >
               <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
               <AnimatePresence>

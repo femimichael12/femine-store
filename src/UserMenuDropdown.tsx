@@ -74,17 +74,17 @@ export default function UserMenuDropdown({
         aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 md:px-3.5 md:py-1.5 rounded-full text-[9px] md:text-[10px] uppercase tracking-widest font-medium border transition-all cursor-pointer shadow-xs active:scale-95",
+          "flex items-center gap-1.5 px-2.5 py-1 md:px-3.5 md:py-1.5 rounded-full text-[9px] md:text-[10px] uppercase tracking-widest font-medium border transition-all cursor-pointer shadow-xs active:scale-95 shrink-0 max-w-[110px] sm:max-w-[140px] md:max-w-none",
           isDark 
             ? "bg-white/10 hover:bg-white/20 text-white border-white/15" 
             : "bg-brand-maroon/5 hover:bg-brand-coral hover:text-white text-brand-maroon border-brand-maroon/15"
         )}
       >
-        <div className="w-4 h-4 rounded-full bg-brand-coral/20 text-brand-coral flex items-center justify-center font-bold text-[9px]">
+        <div className="w-4 h-4 rounded-full bg-brand-coral/20 text-brand-coral flex items-center justify-center font-bold text-[9px] shrink-0">
           {userInitial}
         </div>
-        <span className="truncate max-w-[85px] font-bold">{user.displayName?.split(' ')[0] || 'Account'}</span>
-        <ChevronDown className={cn("w-3 h-3 transition-transform duration-300", isOpen && "rotate-180")} />
+        <span className="truncate max-w-[50px] sm:max-w-[85px] md:max-w-[120px] font-bold">{user.displayName?.split(' ')[0] || 'Account'}</span>
+        <ChevronDown className={cn("w-3 h-3 transition-transform duration-300 shrink-0", isOpen && "rotate-180")} />
       </button>
 
       {/* Glassmorphic Account Dropdown Menu */}

@@ -96,16 +96,24 @@ export default function SignUpPage({ onExit, onNavigateToLogin, theme, toggleThe
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
 
-      await updateProfile(user, { displayName: name.trim() });
+      try {
+        await updateProfile(user, { displayName: name.trim() });
+      } catch (profErr) {
+        console.warn("Profile update notice:", profErr);
+      }
 
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        displayName: name.trim(),
-        role: 'customer',
-        createdAt: new Date().toISOString()
-      });
+      try {
+        await setDoc(doc(db, "users", user.uid), {
+          email: user.email,
+          displayName: name.trim(),
+          role: 'customer',
+          createdAt: new Date().toISOString()
+        });
+      } catch (docErr) {
+        console.warn("Firestore user record notice:", docErr);
+      }
 
-      toast.success("Account created successfully", { description: "Welcome to the world of Feminé" });
+      toast.success("Account created successfully", { description: "Welcome to Feminé!" });
       onExit();
     } catch (error: any) {
       console.error(error);

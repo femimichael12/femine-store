@@ -92,15 +92,18 @@ export default function LoginPage({ onExit, onNavigateToSignUp, theme, toggleThe
 
         await updateProfile(user, { displayName: name });
 
-        // Save user role in Firestore
-        await setDoc(doc(db, "users", user.uid), {
-          email: user.email,
-          displayName: name,
-          role: 'customer',
-          createdAt: new Date().toISOString()
-        });
+        try {
+          await setDoc(doc(db, "users", user.uid), {
+            email: user.email,
+            displayName: name,
+            role: 'customer',
+            createdAt: new Date().toISOString()
+          });
+        } catch (docErr) {
+          console.warn("Firestore record notice:", docErr);
+        }
 
-        toast.success("Account created successfully", { description: "Welcome to the world of Feminé" });
+        toast.success("Account created successfully", { description: "Welcome to Feminé!" });
       } else {
         // Log In Flow
         await signInWithEmailAndPassword(auth, email, password);
