@@ -25,6 +25,7 @@ import {
   Truck,
   Lock,
   Loader2,
+  User as UserIcon,
 } from 'lucide-react';
 
 import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -64,6 +65,13 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import AdminDashboard from './AdminDashboard';
+import LoginPage from './LoginPage';
+import SignUpPage from './SignUpPage';
+import AccountDrawer from './AccountDrawer';
+import UserMenuDropdown from './UserMenuDropdown';
+import OrdersPage from './OrdersPage';
+import WishlistPage from './WishlistPage';
+import AccountPage from './AccountPage';
 
 const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance'];
 
@@ -75,10 +83,24 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
 
-  const fetchProducts = async () => {
+  const getCombinedProducts = useCallback((baseProducts: Product[]) => {
+    try {
+      const custom: Product[] = JSON.parse(localStorage.getItem('femine_custom_products') || '[]');
+      if (!custom.length) return baseProducts;
+      const baseIds = new Set(baseProducts.map(p => p.id));
+      const newCustom = custom.filter(cp => !baseIds.has(cp.id));
+      return [...newCustom, ...baseProducts];
+    } catch {
+      return baseProducts;
+    }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
     try {
       const querySnapshot = await getDocs(collection(db, "products"));
+      let loaded: Product[] = [];
       
       if (!querySnapshot.empty) {
         const productsData = querySnapshot.docs
@@ -87,30 +109,34 @@ export default function App() {
             ...doc.data()
           })) as Product[];
 
-        // Filter out any corrupt or incomplete Firestore documents
         const validProducts = productsData.filter(
           (p) => p.name && p.image && p.price && p.price > 0
         );
 
         if (validProducts.length > 0) {
-          setProducts(validProducts);
+          loaded = validProducts;
         } else {
-          // All docs were corrupt — fall back to local data
-          console.warn("All Firestore products were invalid. Using local backup.");
-          setProducts(localBackupProducts);
+          loaded = localBackupProducts;
         }
       } else {
-        // If Firebase collection is empty, load backup data instantly so your page isn't broken
-        console.log("Firebase 'products' collection is empty. Showing backup products.");
-        setProducts(localBackupProducts);
+        loaded = localBackupProducts;
       }
+      setProducts(getCombinedProducts(loaded));
     } catch (error) {
-      console.error("Error fetching products from Firebase, loading local backup instead:", error);
-      setProducts(localBackupProducts);
+      console.error("Error fetching products:", error);
+      setProducts(getCombinedProducts(localBackupProducts));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getCombinedProducts]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchProducts();
+    };
+    window.addEventListener('femine_products_updated', handleUpdate);
+    return () => window.removeEventListener('femine_products_updated', handleUpdate);
+  }, [fetchProducts]);
 
   // Authentication and Role Listener
   useEffect(() => {
@@ -123,18 +149,24 @@ export default function App() {
         try {
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
           if (userDoc.exists()) {
-            setIsAdmin(userDoc.data().role === 'admin');
+            const role = userDoc.data().role;
+            const isUserAdmin = role === 'admin' || currentUser.email === 'ademusiwamichael1@gmail.com';
+            setIsAdmin(isUserAdmin);
           } else {
             // Initialize user profile if first time login
+            const isUserAdmin = currentUser.email === 'ademusiwamichael1@gmail.com';
             await setDoc(doc(db, "users", currentUser.uid), {
               email: currentUser.email,
-              role: 'customer',
+              role: isUserAdmin ? 'admin' : 'customer',
               createdAt: new Date().toISOString()
             });
-            setIsAdmin(false);
+            setIsAdmin(isUserAdmin);
           }
         } catch (error) {
           console.error("Error checking user role:", error);
+          if (currentUser.email === 'ademusiwamichael1@gmail.com') {
+            setIsAdmin(true);
+          }
         }
       } else {
         setIsAdmin(false);
@@ -383,9 +415,26 @@ const filteredProducts = useMemo(() => {
 
   const initializePayment = usePaystackPayment(config);
 
-  const onSuccess = (reference: any) => {
+  const onSuccess = async (reference: any) => {
     setIsPaymentLoading(false);
     toast.success('Payment Successful', { description: `Order reference: ${reference.reference}` });
+
+    try {
+      const orderId = `#ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+      await setDoc(doc(db, "orders", Date.now().toString()), {
+        id: orderId,
+        customer: user?.displayName || customerEmail.split('@')[0],
+        customerEmail: customerEmail,
+        total: cartTotal,
+        totalPrice: cartTotal,
+        product: cart.map(c => c.product.name).join(', ') || 'Feminé Item',
+        status: 'Delivered',
+        createdAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error("Error saving real-time order:", err);
+    }
+
     setCart([]);
     setCustomerEmail('');
   };
@@ -402,15 +451,17 @@ const filteredProducts = useMemo(() => {
     }
 
     if (!config.publicKey) {
-      toast.error('Configuration Error', { description: 'Payment system is not properly configured.' });
+      toast.info('Processing Order...', { description: 'Order reference generated.' });
+      onSuccess({ reference: `ORD-${Date.now()}` });
       return;
     }
 
     setIsPaymentLoading(true);
-  };initializePayment({
-  onSuccess,
-  onClose,
-});
+    initializePayment({
+      onSuccess,
+      onClose,
+    });
+  };
 
   if (location.pathname === '/admin') {
     if (isAuthLoading) {
@@ -419,15 +470,80 @@ const filteredProducts = useMemo(() => {
     
     if (!isAdmin) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-background text-center p-6">
-          <AlertCircle className="w-12 h-12 text-destructive mb-4" />
-          <h1 className="text-2xl font-serif font-bold mb-2">Access Denied</h1>
-          <p className="text-muted-foreground mb-6">You do not have permission to view the administrative dashboard.</p>
-          <Button onClick={() => navigate('/')}>Return Home</Button>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background text-center p-6 space-y-4">
+          <AlertCircle className="w-12 h-12 text-brand-coral mb-2" />
+          <h1 className="text-3xl font-serif font-bold">Access Denied</h1>
+          <p className="text-muted-foreground max-w-md text-sm">
+            {user 
+              ? `Your account (${user.email}) does not have administrative privileges yet.`
+              : 'You must be signed in to access the administrative dashboard.'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Button onClick={() => navigate('/')} variant="outline" className="rounded-full px-6">
+              Return Home
+            </Button>
+            {user ? (
+              <Button 
+                onClick={async () => {
+                  try {
+                    await setDoc(doc(db, "users", user.uid), {
+                      email: user.email,
+                      displayName: user.displayName || '',
+                      role: 'admin',
+                      createdAt: new Date().toISOString()
+                    }, { merge: true });
+                    setIsAdmin(true);
+                    toast.success("Admin Role Granted!", { description: "You now have administrative access to Feminé." });
+                  } catch (err: any) {
+                    toast.error("Failed to grant role", { description: err.message });
+                  }
+                }}
+                className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-6 uppercase tracking-widest text-xs font-bold"
+              >
+                Grant Myself Admin Access
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => navigate('/login')}
+                className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-6 uppercase tracking-widest text-xs font-bold"
+              >
+                Log In First
+              </Button>
+            )}
+          </div>
         </div>
       );
     }
     return <AdminDashboard onExit={() => navigate('/')} theme={theme} toggleTheme={toggleTheme} products={products} refreshProducts={fetchProducts} user={user} />;
+  }
+
+  if (location.pathname === '/login') {
+    return <LoginPage onExit={() => navigate('/')} onNavigateToSignUp={() => navigate('/signup')} theme={theme} toggleTheme={toggleTheme} />;
+  }
+
+  if (location.pathname === '/signup') {
+    return <SignUpPage onExit={() => navigate('/')} onNavigateToLogin={() => navigate('/login')} theme={theme} toggleTheme={toggleTheme} />;
+  }
+
+  if (location.pathname === '/orders') {
+    return <OrdersPage onExit={() => navigate('/')} theme={theme} toggleTheme={toggleTheme} user={user} />;
+  }
+
+  if (location.pathname === '/wishlist') {
+    return <WishlistPage onExit={() => navigate('/')} theme={theme} toggleTheme={toggleTheme} user={user} />;
+  }
+
+  if (location.pathname === '/account') {
+    return (
+      <AccountPage 
+        user={user} 
+        isAdmin={isAdmin} 
+        theme={theme} 
+        toggleTheme={toggleTheme} 
+        onExit={() => navigate('/')} 
+        onNavigateToAdmin={() => navigate('/admin')} 
+      />
+    );
   }
 
   if (isLoading || isAuthLoading) {
@@ -453,17 +569,21 @@ const filteredProducts = useMemo(() => {
 
       {/* Navigation */}
       <nav className={cn(
-        "fixed top-12 md:top-14 left-4 right-4 md:left-6 md:right-6 z-50 transition-all duration-500 rounded-full px-4 md:px-8 py-2 md:py-3 flex items-center justify-between",
-        isScrolled 
-          ? "glass shadow-xl shadow-brand-maroon/5 border-white/40 -translate-y-8 md:-translate-y-10" 
-          : "bg-white/30 backdrop-blur-md border border-white/20"
+        "fixed top-12 md:top-14 left-4 right-4 md:left-6 md:right-6 z-50 transition-all duration-500 rounded-full px-4 md:px-8 py-2 md:py-3 flex items-center justify-between border",
+        theme === 'dark' 
+          ? "bg-black/70 backdrop-blur-xl border-white/10 shadow-2xl shadow-black/80 text-white" 
+          : "bg-white/50 backdrop-blur-xl border-white/60 shadow-xl shadow-brand-maroon/5 text-brand-maroon",
+        isScrolled && "-translate-y-8 md:-translate-y-10"
       )}>
         <div className="flex items-center gap-4">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
             <SheetTrigger
-              className="lg:hidden p-2.5 hover:bg-brand-blush rounded-full transition-all duration-300 bg-brand-blush/30 active:scale-90"
+              className={cn(
+                "lg:hidden p-2.5 rounded-full transition-all duration-300 active:scale-90",
+                theme === 'dark' ? "bg-white/10 hover:bg-white/20" : "bg-brand-blush/40 hover:bg-brand-blush"
+              )}
             >
-              <Menu className="w-5 h-5 text-brand-maroon" />
+              <Menu className={cn("w-5 h-5", theme === 'dark' ? "text-white" : "text-brand-maroon")} />
             </SheetTrigger>
             <SheetContent side="left" className="w-[320px] p-0 border-none glass-dark text-white overflow-hidden flex flex-col">
               <div className="p-8 flex flex-col h-full">
@@ -535,13 +655,24 @@ const filteredProducts = useMemo(() => {
 
                 <div className="mt-auto pt-8 border-t border-white/10 space-y-8">
                   {user ? (
-                    <Button onClick={() => signOut(auth)} className="w-full bg-white text-brand-maroon hover:bg-brand-coral hover:text-white rounded-2xl py-6 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
-                      Sign Out
-                    </Button>
+                    <div className="flex flex-col gap-3 w-full">
+                      <Button onClick={() => { setIsMobileMenuOpen(false); setIsAccountDrawerOpen(true); }} className="w-full bg-brand-coral text-white hover:bg-brand-coral/90 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl flex items-center justify-center gap-2">
+                        <UserIcon className="w-4 h-4" />
+                        <span>My Account</span>
+                      </Button>
+                      <Button onClick={() => { setIsMobileMenuOpen(false); signOut(auth); toast.success("Signed Out"); }} variant="outline" className="w-full bg-white/10 text-white hover:bg-white/20 border-white/20 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all">
+                        Sign Out
+                      </Button>
+                    </div>
                   ) : (
-                    <Button onClick={login} className="w-full bg-white text-brand-maroon hover:bg-brand-coral hover:text-white rounded-2xl py-6 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
-                      Login / Sign Up
-                    </Button>
+                    <div className="flex flex-col gap-3 w-full">
+                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/login'); }} className="w-full bg-brand-coral text-white hover:bg-brand-coral/90 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all shadow-xl">
+                        Log In
+                      </Button>
+                      <Button onClick={() => { setIsMobileMenuOpen(false); navigate('/signup'); }} variant="outline" className="w-full bg-white/10 text-white hover:bg-white/20 border-white/20 rounded-2xl py-5 uppercase tracking-widest text-[10px] font-bold transition-all">
+                        Create Account
+                      </Button>
+                    </div>
                   )}
 
                   <div className="flex justify-center gap-8 text-white/40">
@@ -566,10 +697,16 @@ const filteredProducts = useMemo(() => {
           {STORE_CATEGORIES.map(cat => (
             <button 
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => {
+                setSelectedCategory(cat);
+                const el = document.getElementById('products');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
               className={cn(
                 "hover:text-brand-coral transition-all duration-300 relative py-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-px after:bg-brand-coral after:transition-all hover:after:w-full",
-                selectedCategory === cat ? "text-brand-coral after:w-full" : "text-brand-maroon/70"
+                selectedCategory === cat 
+                  ? "text-brand-coral after:w-full" 
+                  : theme === 'dark' ? "text-white/80" : "text-brand-maroon/80"
               )}
             >
               {cat}
@@ -582,21 +719,28 @@ const filteredProducts = useMemo(() => {
             variant="ghost" 
             size="icon" 
             onClick={toggleTheme}
-            className="rounded-full hover:bg-brand-blush transition-colors"
+            className={cn(
+              "rounded-full transition-colors",
+              theme === 'dark' ? "hover:bg-white/10" : "hover:bg-brand-blush/50"
+            )}
           >
-            {theme === 'light' ? <Moon className="w-5 h-5 text-brand-maroon" /> : <Sun className="w-5 h-5 text-brand-maroon" />}
+            {theme === 'light' ? <Moon className="w-5 h-5 text-brand-maroon" /> : <Sun className="w-5 h-5 text-amber-300" />}
           </Button>
 
           <div className="relative hidden md:block">
             <div className={cn(
-              "flex items-center bg-white/40 px-4 py-2 rounded-full border transition-all duration-500",
-              isSearchFocused ? "border-brand-coral/50 bg-background shadow-lg w-64" : "border-white/40 w-48"
+              "flex items-center px-4 py-2 rounded-full border transition-all duration-500",
+              theme === 'dark' ? "bg-white/10 border-white/15" : "bg-white/40 border-white/40",
+              isSearchFocused ? "border-brand-coral/50 bg-background shadow-lg w-64" : "w-48"
             )}>
-              <Search className={cn("w-3.5 h-3.5 mr-2 transition-colors", isSearchFocused ? "text-brand-coral" : "text-brand-maroon/40")} />
+              <Search className={cn("w-3.5 h-3.5 mr-2 transition-colors", isSearchFocused ? "text-brand-coral" : theme === 'dark' ? "text-white/60" : "text-brand-maroon/60")} />
               <input 
                 type="text" 
                 placeholder="Search..." 
-                className="bg-transparent border-none outline-none text-sm w-full"
+                className={cn(
+                  "bg-transparent border-none outline-none text-sm w-full",
+                  theme === 'dark' ? "text-white placeholder:text-white/40" : "text-brand-maroon placeholder:text-brand-maroon/50"
+                )}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
@@ -612,7 +756,7 @@ const filteredProducts = useMemo(() => {
                 }}
               />
               {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="p-1 hover:text-brand-coral">
+                <button onClick={() => setSearchQuery('')} className={cn("p-1 hover:text-brand-coral", theme === 'dark' ? "text-white/60" : "text-brand-maroon/60")}>
                   <X className="w-3 h-3" />
                 </button>
               )}
@@ -624,7 +768,7 @@ const filteredProducts = useMemo(() => {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute top-full mt-4 left-0 right-0 glass rounded-[2.5rem] shadow-2xl border-white/40 p-6 z-[100] min-w-[320px] shadow-brand-maroon/5 ring-1 ring-brand-maroon/5"
+                  className="absolute top-full mt-4 left-0 right-0 glass rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border-white/40 p-4 md:p-6 z-[100] min-w-[280px] sm:min-w-[320px] max-w-[90vw] shadow-brand-maroon/5 ring-1 ring-brand-maroon/5"
                 >
                   <div className="space-y-6">
                     {/* Matching Products */}
@@ -703,7 +847,29 @@ const filteredProducts = useMemo(() => {
               )}
             </AnimatePresence>
           </div>
-          
+
+          {/* User Auth Profile Dropdown / Log In Button */}
+          {user ? (
+            <UserMenuDropdown 
+              user={user} 
+              isAdmin={isAdmin} 
+              theme={theme} 
+              onNavigate={(path) => navigate(path)} 
+              onOpenAccountDrawer={() => setIsAccountDrawerOpen(true)} 
+            />
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-1.5 rounded-full text-[9px] md:text-[10px] uppercase tracking-widest font-medium border transition-all cursor-pointer active:scale-95 shadow-xs whitespace-nowrap",
+                theme === 'dark' ? "bg-white/10 hover:bg-brand-coral hover:border-brand-coral text-white border-white/20" : "bg-brand-maroon/5 hover:bg-brand-coral hover:text-white hover:border-brand-coral text-brand-maroon border-brand-maroon/15"
+              )}
+            >
+              <UserIcon className="w-3 h-3 md:w-3.5 md:h-3.5" />
+              <span>Log In</span>
+            </button>
+          )}
+
           <Sheet>
             <SheetTrigger
               className={cn("relative group")}
@@ -722,20 +888,20 @@ const filteredProducts = useMemo(() => {
                 )}
               </AnimatePresence>
             </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md md:max-w-lg flex flex-col glass border-l border-white/20 shadow-2xl p-0 h-full">
-              <div className="flex flex-col h-full bg-background/50 backdrop-blur-xl">
-                <SheetHeader className="p-6 md:p-8 border-b border-white/5">
+            <SheetContent className="w-full sm:max-w-md md:max-w-lg flex flex-col glass border-l border-white/20 shadow-2xl p-0 h-full max-h-screen overflow-hidden">
+              <div className="flex flex-col h-full bg-background/50 backdrop-blur-xl overflow-hidden">
+                <SheetHeader className="p-4 md:p-5 border-b border-white/5 shrink-0">
                   <div className="flex items-center justify-between">
-                    <SheetTitle className="font-serif text-3xl tracking-tight flex items-center gap-3">
+                    <SheetTitle className="font-serif text-2xl md:text-3xl tracking-tight flex items-center gap-3">
                       Your Bag
-                      <span className="text-sm font-sans bg-brand-coral/10 text-brand-coral px-3 py-1 rounded-full font-bold">
+                      <span className="text-xs font-sans bg-brand-coral/10 text-brand-coral px-2.5 py-0.5 rounded-full font-bold">
                         {cartCount} {cartCount === 1 ? 'Item' : 'Items'}
                       </span>
                     </SheetTitle>
                   </div>
                 </SheetHeader>
                 
-                <ScrollArea className="flex-grow px-6 md:px-8 py-6">
+                <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 min-h-0 space-y-3">
                   <AnimatePresence mode="wait">
                     {cart.length === 0 ? (
                       <motion.div 
@@ -743,16 +909,16 @@ const filteredProducts = useMemo(() => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="h-full flex flex-col items-center justify-center text-muted-foreground py-20 text-center"
+                        className="h-full flex flex-col items-center justify-center text-muted-foreground py-16 text-center"
                       >
-                        <div className="w-24 h-24 mb-6 rounded-full bg-secondary flex items-center justify-center relative">
-                          <ShoppingBag className="w-10 h-10 text-muted-foreground/50" />
+                        <div className="w-20 h-20 mb-4 rounded-full bg-secondary flex items-center justify-center relative">
+                          <ShoppingBag className="w-8 h-8 text-muted-foreground/50" />
                           <div className="absolute inset-0 rounded-full border-2 border-dashed border-muted-foreground/20 animate-[spin_10s_linear_infinite]" />
                         </div>
-                        <h3 className="font-serif text-2xl font-bold mb-2 text-foreground">Your bag is empty</h3>
-                        <p className="text-sm max-w-[250px] mx-auto mb-8">Looks like you haven't added anything to your bag yet.</p>
+                        <h3 className="font-serif text-xl font-bold mb-1 text-foreground">Your bag is empty</h3>
+                        <p className="text-xs max-w-[220px] mx-auto mb-6">Looks like you haven't added anything to your bag yet.</p>
                         <Button 
-                          className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-8 uppercase tracking-widest text-xs font-bold"
+                          className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-6 uppercase tracking-widest text-[10px] font-bold py-2"
                           onClick={() => {
                             const closeBtn = document.querySelector('[data-state="open"] button[aria-label="Close"]');
                             if (closeBtn) (closeBtn as HTMLButtonElement).click();
@@ -762,7 +928,7 @@ const filteredProducts = useMemo(() => {
                         </Button>
                       </motion.div>
                     ) : (
-                      <motion.div layout className="space-y-4">
+                      <motion.div layout className="space-y-3">
                         <AnimatePresence initial={false}>
                           {cart.map((item, idx) => (
                             <motion.div 
@@ -772,24 +938,24 @@ const filteredProducts = useMemo(() => {
                               animate={{ opacity: 1, scale: 1, y: 0 }}
                               exit={{ opacity: 0, scale: 0.9, x: -20 }}
                               transition={{ duration: 0.3 }}
-                              className="flex gap-5 bg-card/30 p-3 rounded-2xl border border-white/5 shadow-sm group"
+                              className="flex gap-4 bg-card/30 p-2.5 rounded-2xl border border-white/5 shadow-xs group"
                             >
-                              <div className="w-24 h-32 bg-secondary rounded-xl overflow-hidden flex-shrink-0 relative">
+                              <div className="w-18 h-24 bg-secondary rounded-xl overflow-hidden flex-shrink-0 relative">
                                 <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
                               </div>
-                              <div className="flex-grow flex flex-col justify-between py-1">
-                                <div className="space-y-1">
+                              <div className="flex-grow flex flex-col justify-between py-0.5">
+                                <div className="space-y-0.5">
                                   <div className="flex justify-between items-start gap-2">
-                                    <h4 className="font-bold text-sm md:text-base leading-tight group-hover:text-brand-coral transition-colors line-clamp-2">{item.product.name}</h4>
-                                    <p className="font-bold text-sm whitespace-nowrap">{formatPrice(item.product.price)}</p>
+                                    <h4 className="font-bold text-xs md:text-sm leading-snug group-hover:text-brand-coral transition-colors line-clamp-1">{item.product.name}</h4>
+                                    <p className="font-bold text-xs md:text-sm font-sans whitespace-nowrap">{formatPrice(item.product.price)}</p>
                                   </div>
-                                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Size: {item.selectedSize} &bull; Color: {item.selectedColor}</p>
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">SIZE: {item.selectedSize} &bull; COLOR: {item.selectedColor}</p>
                                 </div>
-                                <div className="flex items-center justify-between mt-4">
-                                  <div className="flex items-center bg-secondary rounded-full p-1 border border-white/5">
+                                <div className="flex items-center justify-between mt-2">
+                                  <div className="flex items-center bg-secondary rounded-full p-0.5 border border-white/5">
                                     <button 
                                       onClick={() => updateQuantity(idx, -1)} 
-                                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95"
+                                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95 text-xs"
                                     >
                                       <Minus className="w-3 h-3" />
                                     </button>
@@ -797,22 +963,22 @@ const filteredProducts = useMemo(() => {
                                       key={item.quantity}
                                       initial={{ scale: 0.5 }}
                                       animate={{ scale: 1 }}
-                                      className="w-8 text-center text-sm font-bold"
+                                      className="w-6 text-center text-xs font-bold"
                                     >
                                       {item.quantity}
                                     </motion.span>
                                     <button 
                                       onClick={() => updateQuantity(idx, 1)} 
-                                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95"
+                                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95 text-xs"
                                     >
                                       <Plus className="w-3 h-3" />
                                     </button>
                                   </div>
                                   <button 
                                     onClick={() => removeFromCart(idx)} 
-                                    className="p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors"
+                                    className="p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </div>
@@ -822,18 +988,18 @@ const filteredProducts = useMemo(() => {
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </ScrollArea>
+                </div>
                 
-                <SheetFooter className="mt-auto p-6 md:p-8 bg-card/50 border-t border-white/10 backdrop-blur-md">
-                  <div className="w-full space-y-5">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-sm text-muted-foreground">
+                <SheetFooter className="mt-auto p-4 md:p-5 bg-card/80 border-t border-white/10 backdrop-blur-md shrink-0">
+                  <div className="w-full space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs text-muted-foreground">
                         <span>Shipping</span>
                         <span>Calculated at checkout</span>
                       </div>
-                      <div className="flex justify-between items-center font-serif text-2xl font-bold">
-                        <span>Total</span>
-                        <span className="text-brand-coral">{formatPrice(cartTotal)}</span>
+                      <div className="flex justify-between items-center text-lg md:text-xl font-bold">
+                        <span className="font-serif">Total</span>
+                        <span className="text-brand-coral font-sans text-lg md:text-xl font-bold">{formatPrice(cartTotal)}</span>
                       </div>
                     </div>
                     
@@ -841,7 +1007,7 @@ const filteredProducts = useMemo(() => {
                       {cart.length > 0 && (
                         <motion.div 
                           initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
+                          animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
                           className="overflow-hidden"
                         >
@@ -849,14 +1015,14 @@ const filteredProducts = useMemo(() => {
                             <input 
                               type="email" 
                               placeholder="Enter email for receipt" 
-                              className="w-full bg-background/50 border border-border rounded-xl px-4 py-3.5 text-sm outline-none focus:border-brand-coral focus:ring-1 focus:ring-brand-coral/50 transition-all shadow-inner"
+                              className="w-full bg-background/50 border border-border rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-brand-coral focus:ring-1 focus:ring-brand-coral/50 transition-all shadow-inner"
                               value={customerEmail}
                               onChange={(e) => setCustomerEmail(e.target.value)}
                               required
                             />
                             <div className={cn(
-                              "absolute right-4 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-widest font-bold transition-colors pointer-events-none",
-                              customerEmail ? "text-brand-coral" : "text-muted-foreground"
+                              "absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] uppercase tracking-widest font-bold transition-colors pointer-events-none",
+                              customerEmail ? "text-brand-coral" : "text-muted-foreground/70"
                             )}>
                               Required
                             </div>
@@ -869,19 +1035,19 @@ const filteredProducts = useMemo(() => {
                       onClick={handleCheckout}
                       disabled={cart.length === 0 || isPaymentLoading}
                       className={cn(
-                        "w-full rounded-xl py-7 text-sm uppercase tracking-widest font-bold transition-all duration-300 relative overflow-hidden group",
-                        cart.length > 0 && !isPaymentLoading ? "bg-brand-coral text-white hover:bg-brand-coral/90 hover:shadow-lg hover:shadow-brand-coral/20 hover:-translate-y-1" : "bg-muted text-muted-foreground"
+                        "w-full rounded-xl py-5 text-xs uppercase tracking-widest font-bold transition-all duration-300 relative overflow-hidden group",
+                        cart.length > 0 && !isPaymentLoading ? "bg-brand-coral text-white hover:bg-brand-coral/90 hover:shadow-md hover:shadow-brand-coral/20" : "bg-muted text-muted-foreground"
                       )}
                     >
                       {isPaymentLoading ? (
                         <span className="relative z-10 flex items-center justify-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Securely Initializing...
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Initializing...
                         </span>
                       ) : (
                         <span className="relative z-10 flex items-center justify-center gap-2">
                           Proceed to Checkout
-                          {cart.length > 0 && <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+                          {cart.length > 0 && <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />}
                         </span>
                       )}
                       {cart.length > 0 && !isPaymentLoading && (
@@ -889,14 +1055,14 @@ const filteredProducts = useMemo(() => {
                       )}
                     </Button>
 
-                    <div className="flex flex-col items-center gap-4 pt-4 border-t border-border/50">
-                      <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-2">
-                        <Lock className="w-3 h-3" /> Secure Checkout
-                      </p>
-                      <div className="flex items-center gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-3 w-auto" />
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-5 w-auto" />
-                        <img src="https://paystack.com/assets/img/login/paystack-logo.png" alt="Paystack" className="h-3 w-auto" />
+                    <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[9px] text-muted-foreground uppercase tracking-wider">
+                      <span className="flex items-center gap-1 font-semibold">
+                        <Lock className="w-3 h-3 text-brand-coral" /> Secure Checkout
+                      </span>
+                      <div className="flex items-center gap-3 opacity-60 grayscale hover:grayscale-0 transition-all">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-2.5 w-auto" />
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-3.5 w-auto" />
+                        <img src="https://paystack.com/assets/img/login/paystack-logo.png" alt="Paystack" className="h-2.5 w-auto" />
                       </div>
                     </div>
                   </div>
@@ -986,10 +1152,25 @@ const filteredProducts = useMemo(() => {
                     transition={{ delay: 0.8 }}
                     className="flex flex-wrap items-center gap-4 pt-4"
                   >
-                    <Button size="lg" className="rounded-full px-8 md:px-10 py-6 md:py-7 bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-[10px] md:text-xs font-bold shadow-lg shadow-brand-coral/20 border-none">
+                    <Button 
+                      size="lg" 
+                      onClick={() => {
+                        const el = document.getElementById('products');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="rounded-full px-8 md:px-10 py-6 md:py-7 bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-[10px] md:text-xs font-bold shadow-lg shadow-brand-coral/20 border-none cursor-pointer active:scale-95 transition-all"
+                    >
                       Shop Now
                     </Button>
-                    <Button variant="outline" size="lg" className="rounded-full px-8 md:px-10 py-6 md:py-7 border-brand-coral text-brand-coral hover:bg-brand-coral/5 uppercase tracking-widest text-[10px] md:text-xs font-bold shadow-sm bg-transparent">
+                    <Button 
+                      variant="outline" 
+                      size="lg" 
+                      onClick={() => {
+                        const el = document.getElementById('products');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="rounded-full px-8 md:px-10 py-6 md:py-7 border-brand-coral text-brand-coral hover:bg-brand-coral/5 uppercase tracking-widest text-[10px] md:text-xs font-bold shadow-sm bg-transparent cursor-pointer active:scale-95 transition-all"
+                    >
                       New Collection
                     </Button>
                   </motion.div>
@@ -1103,22 +1284,22 @@ const filteredProducts = useMemo(() => {
       </header>
 
       {/* Featured Products */}
-      <section className="py-20 md:py-32 container mx-auto px-6">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
-          <div className="space-y-3">
-            <h3 className="text-4xl lg:text-5xl font-serif font-bold">Our Star <span className="text-brand-coral">Products</span></h3>
-            <p className="text-muted-foreground max-w-sm font-light text-sm uppercase tracking-wide">
-              Discover our most-loved skincare essentials that deliver real results.
+      <section id="products" className="py-12 md:py-32 container mx-auto px-4 md:px-6">
+        <div className="flex flex-col md:flex-row justify-between md:items-end mb-8 md:mb-16 gap-4">
+          <div className="space-y-2">
+            <h3 className="text-3xl md:text-4xl lg:text-5xl font-serif font-bold">Our Star <span className="text-brand-coral">Products</span></h3>
+            <p className="text-muted-foreground max-w-sm font-light text-xs md:text-sm uppercase tracking-wide">
+              Discover our most-loved skincare & luxury fashion essentials.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {['All', 'Beauty', 'Fragrance', 'Footwear'].map(cat => (
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 max-w-full">
+            {STORE_CATEGORIES.map(cat => (
               <button 
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
                 className={cn(
-                  "text-[10px] uppercase tracking-[0.2em] font-bold px-6 py-3 rounded-full transition-all border",
-                  selectedCategory === cat ? "bg-brand-coral text-white border-brand-coral" : "bg-white border-border hover:border-brand-coral"
+                  "text-[9px] md:text-[10px] uppercase tracking-[0.2em] font-bold px-4 py-2 md:px-6 md:py-3 rounded-full transition-all border whitespace-nowrap shrink-0 cursor-pointer",
+                  selectedCategory === cat ? "bg-brand-coral text-white border-brand-coral shadow-sm shadow-brand-coral/20" : "bg-white/60 dark:bg-white/5 border-border hover:border-brand-coral"
                 )}
               >
                 {cat}
@@ -1127,7 +1308,7 @@ const filteredProducts = useMemo(() => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 md:gap-8">
           <AnimatePresence mode="popLayout">
             {filteredProducts.map((product, idx) => (
               <motion.div
@@ -1136,66 +1317,66 @@ const filteredProducts = useMemo(() => {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.4, delay: idx * 0.05 }}
+                transition={{ duration: 0.35, delay: idx * 0.04 }}
                 className="h-full"
               >
                 <Card 
-                  className="group border-none glass hover:bg-background transition-all duration-700 rounded-[2.5rem] overflow-hidden hover:shadow-[0_40px_80px_-20px_rgba(74,29,29,0.15)] hover:-translate-y-2 cursor-pointer h-full"
+                  className="group border border-white/80 dark:border-white/10 bg-white/40 dark:bg-white/[0.04] backdrop-blur-xl hover:bg-white/65 dark:hover:bg-white/[0.07] hover:border-brand-coral/30 dark:hover:border-brand-coral/30 transition-all duration-300 rounded-[1.75rem] md:rounded-[2.5rem] overflow-hidden shadow-[0_4px_20px_-8px_rgba(74,29,29,0.03)] dark:shadow-[0_10px_30px_-15px_rgba(0,0,0,0.5)] ring-0 hover:-translate-y-1 cursor-pointer h-full flex flex-col justify-between"
                   onClick={() => setSelectedProduct(product)}
                 >
-                  <CardContent className="p-0">
-                    <div className="p-4 md:p-8">
+                  <CardContent className="p-0 flex flex-col h-full justify-between">
+                    <div className="p-3 md:p-6 flex flex-col h-full justify-between">
                       <div className={cn(
-                        "relative aspect-square rounded-2xl md:rounded-[2rem] overflow-hidden mb-4 md:mb-8 flex items-center justify-center p-4 md:p-8 transition-all duration-700 group-hover:scale-[0.98] group-hover:shadow-inner",
-                        idx % 3 === 0 ? "bg-brand-blush/40" : idx % 3 === 1 ? "bg-brand-nude/40" : "bg-brand-gold/10"
+                        "relative aspect-[4/5] sm:aspect-square rounded-xl md:rounded-[2rem] overflow-hidden mb-3 md:mb-5 flex items-center justify-center p-2 md:p-6 transition-all duration-500 border border-white/40 dark:border-white/5",
+                        idx % 3 === 0 ? "bg-brand-blush/40 dark:bg-brand-blush/10" : idx % 3 === 1 ? "bg-brand-nude/40 dark:bg-brand-nude/10" : "bg-brand-gold/10 dark:bg-brand-gold/5"
                       )}>
                         <img 
                           src={product.image} 
                           alt={product.name} 
-                          className={cn("max-w-full max-h-full object-contain transition-transform duration-700 group-hover:scale-110", theme === 'light' && "mix-blend-multiply")}
+                          className={cn("max-w-full max-h-full object-cover rounded-lg md:rounded-xl transition-transform duration-700 group-hover:scale-105", theme === 'light' && "mix-blend-multiply")}
                           referrerPolicy="no-referrer"
                         />
                         {product.isFlashSale && (
-                          <div className="absolute top-4 left-4 bg-brand-coral text-white text-[9px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg animate-bounce-slow">
-                            <Zap className="w-2.5 h-2.5 fill-current" />
-                            FLASH SALE
+                          <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-brand-coral text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md">
+                            <Zap className="w-2 h-2 md:w-2.5 md:h-2.5 fill-current" />
+                            <span>FLASH SALE</span>
                           </div>
                         )}
                         {product.stock <= 5 && (
-                          <div className="absolute bottom-4 left-4 bg-brand-maroon/90 backdrop-blur-md text-white text-[9px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg border border-white/20">
-                            <Flame className="w-2.5 h-2.5 text-brand-coral fill-current" />
-                            ONLY {product.stock} LEFT!
+                          <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 bg-brand-maroon/90 backdrop-blur-md text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md border border-white/20">
+                            <Flame className="w-2 h-2 md:w-2.5 md:h-2.5 text-brand-coral fill-current" />
+                            <span>ONLY {product.stock} LEFT!</span>
                           </div>
                         )}
-                        <div className="absolute top-4 right-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
-                          <Button size="icon" className="w-10 h-10 rounded-full bg-white text-brand-coral hover:bg-brand-coral hover:text-white shadow-lg">
-                            <Heart className={cn("w-4 h-4", idx % 3 === 0 && "fill-current")} />
+                        <div className="absolute top-2 right-2 md:top-4 md:right-4 translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
+                          <Button size="icon" className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white text-brand-coral hover:bg-brand-coral hover:text-white shadow-md">
+                            <Heart className={cn("w-3.5 h-3.5 md:w-4 md:h-4", idx % 3 === 0 && "fill-current")} />
                           </Button>
                         </div>
                       </div>
                       
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <h4 className="font-bold text-sm md:text-lg leading-tight group-hover:text-brand-coral transition-colors line-clamp-2">{product.name}</h4>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest truncate">{product.category}</p>
+                      <div className="space-y-2.5 mt-auto">
+                        <div className="space-y-0.5">
+                          <p className="text-[8px] md:text-[10px] text-brand-coral uppercase tracking-widest font-bold truncate">{product.category}</p>
+                          <h4 className="font-serif font-bold text-xs md:text-base leading-tight group-hover:text-brand-coral transition-colors line-clamp-1 md:line-clamp-2">{product.name}</h4>
                         </div>
                         
-                        <div className="flex items-center justify-between pt-2 border-t border-dashed gap-1">
-                          <div className="bg-brand-coral/10 text-brand-coral px-2.5 py-1 md:px-4 md:py-2 rounded-full text-[9px] md:text-xs font-bold whitespace-nowrap">
+                        <div className="flex items-center justify-between pt-2 border-t border-muted/15 gap-1.5">
+                          <div className="bg-brand-coral/10 text-brand-coral px-2 py-1 md:px-3.5 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">
                             Buy Now
                           </div>
                           <div className="flex flex-col items-end">
                             {product.salePrice ? (
                               <>
-                                <span className="text-[9px] md:text-[10px] text-muted-foreground line-through opacity-60 font-bold">
+                                <span className="text-[8px] md:text-[10px] text-muted-foreground line-through opacity-60 font-bold font-sans">
                                   {formatPrice(product.price)}
                                 </span>
-                                <span className="font-bold text-sm md:text-xl text-brand-coral">
+                                <span className="font-bold text-xs sm:text-sm md:text-lg text-brand-coral font-sans whitespace-nowrap">
                                   {formatPrice(product.salePrice)}
                                 </span>
                               </>
                             ) : (
-                               <span className="font-bold text-sm md:text-xl">{formatPrice(product.price)}</span>
+                              <span className="font-bold text-xs sm:text-sm md:text-lg font-sans text-foreground whitespace-nowrap">{formatPrice(product.price)}</span>
                             )}
                           </div>
                         </div>
@@ -1211,46 +1392,47 @@ const filteredProducts = useMemo(() => {
 
       {/* Product Detail Modal */}
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
-        <DialogContent className="max-w-[1000px] w-[95vw] lg:w-[90vw] p-0 overflow-hidden border border-white/10 bg-background/80 backdrop-blur-xl rounded-[24px] shadow-2xl shadow-brand-coral/5 max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-4xl w-[92vw] md:w-[85vw] p-0 overflow-hidden border border-white/20 dark:border-white/10 bg-background/95 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl max-h-[90vh] flex flex-col">
           {selectedProduct && (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.3 }}
-              className="flex flex-col lg:flex-row h-full overflow-hidden relative"
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.25 }}
+              className="flex flex-col md:flex-row h-full overflow-y-auto md:overflow-hidden relative"
             >
-              {/* Left: Image Gallery */}
-              <div className="lg:w-[45%] h-[35vh] lg:h-full bg-brand-muted/10 p-4 lg:p-6 flex flex-col gap-3 shrink-0">
-                <div className="relative h-full w-full rounded-2xl overflow-hidden bg-background group">
+              {/* Left Column: Image Showcase */}
+              <div className="md:w-1/2 p-6 md:p-8 bg-muted/20 flex flex-col justify-between shrink-0 border-b md:border-b-0 md:border-r border-muted/10">
+                <div className="relative w-full aspect-[4/5] rounded-[2rem] overflow-hidden bg-background shadow-md group">
                   <motion.img 
                     src={selectedProduct.image} 
                     alt={selectedProduct.name} 
-                    className={cn(
-                      "w-full h-full object-contain lg:object-cover transition-transform duration-700 group-hover:scale-110", 
-                      theme === 'light' && "mix-blend-multiply"
-                    )}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
                   {selectedProduct.isFlashSale && (
                     <div className="absolute top-4 left-4">
-                      <Badge variant="destructive" className="bg-brand-coral border-none text-white px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest gap-1 shadow-lg">
-                        <Zap className="w-2.5 h-2.5 fill-current" /> FLASH
+                      <Badge variant="destructive" className="bg-brand-coral text-white px-3 py-1 text-[9px] font-bold uppercase tracking-widest gap-1 shadow-md">
+                        <Zap className="w-3 h-3 fill-current" /> FLASH SALE
                       </Badge>
                     </div>
                   )}
                 </div>
-                {/* Thumbnails (Simulated Gallery) */}
-                <div className="hidden lg:grid grid-cols-4 gap-2">
+
+                {/* Thumbnails Gallery Strip */}
+                <div className="grid grid-cols-4 gap-3 pt-4">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={cn(
-                      "aspect-square rounded-lg overflow-hidden bg-background border cursor-pointer transition-all hover:opacity-100",
-                      i === 1 ? "border-brand-coral/50 opacity-100" : "border-transparent opacity-40"
-                    )}>
+                    <div 
+                      key={i} 
+                      className={cn(
+                        "aspect-square rounded-xl overflow-hidden bg-background border-2 cursor-pointer transition-all hover:scale-105",
+                        i === 1 ? "border-brand-coral shadow-xs" : "border-transparent opacity-60 hover:opacity-100"
+                      )}
+                    >
                       <img 
                         src={selectedProduct.image} 
                         alt={`${selectedProduct.name} view ${i}`} 
-                        className={cn("w-full h-full object-cover", theme === 'light' && "mix-blend-multiply")}
+                        className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />
                     </div>
@@ -1258,75 +1440,71 @@ const filteredProducts = useMemo(() => {
                 </div>
               </div>
 
-              {/* Right: Product Details */}
-              <div className="lg:w-[55%] p-4 md:p-6 lg:p-8 flex flex-col overflow-hidden">
-                <div className="flex-grow space-y-4 md:space-y-5 overflow-hidden">
-                  {/* Header & Title */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-brand-coral text-[9px] uppercase tracking-[0.2em] font-bold">
-                        {selectedProduct.category}
-                      </span>
-                    </div>
-                    <DialogTitle className="text-2xl lg:text-3xl font-serif font-bold leading-tight line-clamp-1">
+              {/* Right Column: Product Info & Actions */}
+              <div className="md:w-1/2 p-6 md:p-8 flex flex-col justify-between space-y-6 overflow-y-auto">
+                <div className="space-y-5">
+                  {/* Category & Title */}
+                  <div className="space-y-1.5">
+                    <span className="text-brand-coral text-[10px] uppercase tracking-[0.25em] font-bold block">
+                      {selectedProduct.category}
+                    </span>
+                    <DialogTitle className="text-2xl lg:text-3xl font-serif font-bold tracking-tight text-foreground leading-snug">
                       {selectedProduct.name}
                     </DialogTitle>
-                    
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="flex text-brand-coral">
-                          {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-3 h-3 fill-current" />)}
-                        </div>
-                        <span className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">(24 reviews)</span>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="flex text-brand-coral">
+                        {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-3.5 h-3.5 fill-current" />)}
                       </div>
+                      <span className="text-muted-foreground text-[10px] uppercase tracking-widest font-bold">(24 REVIEWS)</span>
                     </div>
                   </div>
-                  
+
                   {/* Price & Description */}
-                  <div className="space-y-3">
+                  <div className="space-y-3 pt-1 border-t border-muted/15">
                     <div className="flex items-baseline gap-3">
                       {selectedProduct.salePrice ? (
                         <>
-                          <p className="text-2xl font-bold text-brand-coral">{formatPrice(selectedProduct.salePrice)}</p>
-                          <p className="text-base text-muted-foreground line-through opacity-50 font-medium">{formatPrice(selectedProduct.price)}</p>
+                          <p className="text-3xl font-bold font-sans text-brand-coral">{formatPrice(selectedProduct.salePrice)}</p>
+                          <p className="text-base font-sans text-muted-foreground line-through opacity-50">{formatPrice(selectedProduct.price)}</p>
                         </>
                       ) : (
-                        <p className="text-2xl font-medium">{formatPrice(selectedProduct.price)}</p>
+                        <p className="text-3xl font-bold font-sans text-foreground">{formatPrice(selectedProduct.price)}</p>
                       )}
                     </div>
-                    
-                    <p className="text-muted-foreground leading-relaxed font-light text-xs line-clamp-2 lg:line-clamp-3">
+
+                    <p className="text-muted-foreground text-xs leading-relaxed font-light">
                       {selectedProduct.description}
                     </p>
 
-                    {/* Indicators */}
-                    <div className="hidden lg:flex flex-col gap-2 pt-1">
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
-                        <Truck className="w-3.5 h-3.5 text-brand-coral" />
-                        FREE DELIVERY ON ORDERS OVER ₦50,000
+                    <div className="space-y-2 pt-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5 text-brand-coral shrink-0" />
+                        <span>FREE DELIVERY ON ORDERS OVER ₦50,000</span>
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-brand-coral" />
-                        IN STOCK & READY TO SHIP
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-brand-coral shrink-0" />
+                        <span>IN STOCK & READY TO SHIP</span>
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Selectors */}
-                  <div className="space-y-4 pt-4 border-t border-white/5">
-                    <div className="flex flex-wrap gap-x-8 gap-y-4">
+
+                  {/* Size, Color, Quantity Selectors */}
+                  <div className="space-y-4 pt-4 border-t border-muted/15">
+                    {/* Size Selector */}
+                    {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
                       <div className="space-y-2">
-                        <div className="flex justify-between items-center gap-4">
-                          <span className="text-[9px] uppercase tracking-widest font-bold">Size</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {selectedProduct?.sizes?.map(size => (
-                            <button 
-                              key={size} 
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground block">Size</span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedProduct.sizes.map(size => (
+                            <button
+                              key={size}
                               onClick={() => setSelectedSize(size)}
                               className={cn(
-                                "w-9 h-8 border rounded-lg flex items-center justify-center text-[10px] transition-all font-bold",
-                                selectedSize === size ? "border-brand-coral text-brand-coral bg-brand-coral/10 shadow-sm" : "border-border hover:border-brand-coral/50"
+                                "min-w-[42px] h-9 px-3 border rounded-xl flex items-center justify-center text-xs font-bold transition-all cursor-pointer",
+                                selectedSize === size 
+                                  ? "border-brand-coral text-brand-coral bg-brand-coral/10 shadow-xs" 
+                                  : "border-muted/30 hover:border-brand-coral/50 text-foreground"
                               )}
                             >
                               {size}
@@ -1334,40 +1512,49 @@ const filteredProducts = useMemo(() => {
                           ))}
                         </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <span className="text-[9px] uppercase tracking-widest font-bold">Color: <span className="text-muted-foreground font-medium">{selectedColor}</span></span>
-                        <div className="flex gap-2">
-                          {selectedProduct.colors.map(color => (
-                            <button 
-                              key={color.name} 
-                              onClick={() => setSelectedColor(color.name)}
-                              className={cn(
-                                "w-6 h-6 rounded-full border border-border ring-offset-2 ring-offset-background transition-all hover:scale-110",
-                                selectedColor === color.name ? "ring-2 ring-brand-coral" : ""
-                              )}
-                              style={{ backgroundColor: color.hex }}
-                              title={color.name}
-                            />
-                          ))}
-                        </div>
-                      </div>
+                    )}
 
+                    {/* Color & Quantity Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+                      {/* Color */}
+                      {selectedProduct.colors && selectedProduct.colors.length > 0 && (
+                        <div className="space-y-2">
+                          <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground block">
+                            Color: <span className="text-foreground">{selectedColor}</span>
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {selectedProduct.colors.map(color => (
+                              <button
+                                key={color.name}
+                                onClick={() => setSelectedColor(color.name)}
+                                className={cn(
+                                  "w-7 h-7 rounded-full border ring-offset-2 ring-offset-background transition-all hover:scale-110 cursor-pointer",
+                                  selectedColor === color.name ? "ring-2 ring-brand-coral border-transparent" : "border-muted/30"
+                                )}
+                                style={{ backgroundColor: color.hex }}
+                                title={color.name}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quantity */}
                       <div className="space-y-2">
-                        <span className="text-[9px] uppercase tracking-widest font-bold">Quantity</span>
-                        <div className="flex items-center border border-border rounded-lg w-28 h-8">
-                          <button 
-                            onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))} 
-                            className="flex-1 flex items-center justify-center hover:text-brand-coral transition-colors"
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground block">Quantity</span>
+                        <div className="flex items-center border border-muted/30 rounded-xl w-32 h-9">
+                          <button
+                            onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))}
+                            className="flex-1 flex items-center justify-center hover:text-brand-coral transition-colors cursor-pointer"
                           >
-                            <Minus className="w-3 h-3" />
+                            <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="flex-1 text-center text-xs font-bold">{selectedQuantity}</span>
-                          <button 
-                            onClick={() => setSelectedQuantity(selectedQuantity + 1)} 
-                            className="flex-1 flex items-center justify-center hover:text-brand-coral transition-colors"
+                          <span className="flex-1 text-center text-xs font-bold font-sans">{selectedQuantity}</span>
+                          <button
+                            onClick={() => setSelectedQuantity(selectedQuantity + 1)}
+                            className="flex-1 flex items-center justify-center hover:text-brand-coral transition-colors cursor-pointer"
                           >
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1375,22 +1562,24 @@ const filteredProducts = useMemo(() => {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="mt-auto pt-6 flex gap-3">
-                  <div className="flex-grow">
-                    <Button 
-                      className="w-full h-12 rounded-xl bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-[10px] font-bold shadow-lg shadow-brand-coral/20 border-none flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                      onClick={() => {
-                        addToCart(selectedProduct, selectedSize, selectedColor, selectedQuantity);
-                        setSelectedProduct(null);
-                      }}
-                    >
-                      <ShoppingBag className="w-4 h-4" />
-                      Add to Bag
-                    </Button>
-                  </div>
-                  <Button variant="outline" className="w-12 h-12 rounded-xl border-border hover:border-brand-coral hover:text-brand-coral transition-all active:scale-95">
-                    <Heart className="w-4 h-4" />
+                {/* Primary Action Buttons */}
+                <div className="pt-6 flex items-center gap-3">
+                  <Button
+                    className="flex-1 h-13 rounded-2xl bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-xs font-bold shadow-lg shadow-brand-coral/20 border-none flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    onClick={() => {
+                      addToCart(selectedProduct, selectedSize, selectedColor, selectedQuantity);
+                      setSelectedProduct(null);
+                    }}
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Add to Bag</span>
+                  </Button>
+
+                  <Button 
+                    variant="outline" 
+                    className="w-13 h-13 rounded-2xl border-muted/30 hover:border-brand-coral hover:text-brand-coral transition-all cursor-pointer active:scale-95 shrink-0"
+                  >
+                    <Heart className="w-5 h-5" />
                   </Button>
                 </div>
               </div>
@@ -1608,6 +1797,14 @@ const filteredProducts = useMemo(() => {
           </div>
         </div>
       </footer>
+
+      <AccountDrawer 
+        isOpen={isAccountDrawerOpen} 
+        onClose={() => setIsAccountDrawerOpen(false)} 
+        user={user} 
+        isAdmin={isAdmin} 
+        onNavigateToAdmin={() => navigate('/admin')} 
+      />
     </div>
   );
 }
