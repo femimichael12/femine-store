@@ -1822,9 +1822,6 @@ const filteredProducts = useMemo(() => {
         onNavigateToAdmin={() => navigate('/admin')} 
       />
 
-      {/* Luxury PWA Installation Prompt Banner */}
-      <PWAInstallPrompt theme={theme} />
-
       {/* Step-by-Step PWA Installation Guide Modal */}
       <PWAInstallModal 
         isOpen={isPWAInstallModalOpen} 

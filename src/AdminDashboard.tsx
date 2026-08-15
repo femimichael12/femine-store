@@ -221,14 +221,70 @@ export default function AdminDashboard({
 
   return (
     <div className={cn(
-      "min-h-screen flex font-sans transition-colors duration-500 selection:bg-brand-coral selection:text-white",
+      "min-h-screen flex flex-col lg:flex-row font-sans transition-colors duration-500 selection:bg-brand-coral selection:text-white overflow-x-hidden",
       isDark ? "bg-[#050505] text-white" : "bg-[#fcfaf7] text-brand-maroon"
     )}>
       <Toaster position="top-right" richColors theme={isDark ? "dark" : "light"} />
       
-      {/* Sidebar */}
+      {/* Mobile Top Navigation & Tab Bar */}
+      <div className={cn(
+        "lg:hidden w-full flex flex-col border-b sticky top-0 z-40 backdrop-blur-2xl px-4 py-3 gap-3 safe-pt shadow-xs",
+        isDark ? "border-white/10 bg-black/85 text-white" : "border-black/10 bg-white/90 text-brand-maroon"
+      )}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-brand-coral flex items-center justify-center shadow-md">
+              <span className="text-white font-serif font-bold text-base">F</span>
+            </div>
+            <div>
+              <h2 className="text-sm font-serif font-bold tracking-tight leading-none">FEMINÉ</h2>
+              <span className="text-[8px] text-brand-coral uppercase tracking-widest block font-bold">Admin Portal</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onExit}
+              className="text-[9px] uppercase font-bold tracking-wider px-3 py-1 rounded-full border border-brand-coral/40 text-brand-coral hover:bg-brand-coral hover:text-white transition-all cursor-pointer whitespace-nowrap"
+            >
+              Exit Store
+            </button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="w-8 h-8 rounded-full"
+            >
+              {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-brand-maroon" />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Mobile Horizontal Scrollable Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5 w-full max-w-full">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] uppercase tracking-wider font-bold whitespace-nowrap shrink-0 transition-all cursor-pointer border",
+                activeTab === item.id 
+                  ? "bg-brand-coral text-white border-brand-coral shadow-sm shadow-brand-coral/20" 
+                  : isDark 
+                    ? "bg-white/5 border-white/10 text-white/70" 
+                    : "bg-white border-border text-brand-maroon/70"
+              )}
+            >
+              <item.icon className="w-3.5 h-3.5" />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
       <aside className={cn(
-        "w-72 border-r flex flex-col sticky top-0 h-screen transition-colors duration-500 z-30",
+        "hidden lg:flex w-72 border-r flex-col sticky top-0 h-screen transition-colors duration-500 z-30 shrink-0",
         isDark ? "border-white/10 bg-black/60 backdrop-blur-2xl text-white" : "border-black/10 bg-white/75 backdrop-blur-2xl text-brand-maroon shadow-sm"
       )}>
         <div className="p-8">
@@ -313,34 +369,25 @@ export default function AdminDashboard({
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-grow p-6 md:p-10 overflow-y-auto">
-        <header className="flex flex-col md:flex-row justify-between md:items-center mb-10 gap-4">
+      <main className="flex-grow p-4 sm:p-6 md:p-10 overflow-y-auto min-w-0 max-w-full overflow-x-hidden">
+        <header className="flex flex-col md:flex-row justify-between md:items-center mb-6 md:mb-10 gap-4">
           <div>
-            <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif font-bold tracking-tight">
               {navItems.find(i => i.id === activeTab)?.label}
             </h1>
             <p className="text-muted-foreground text-xs md:text-sm mt-1">
-              Welcome back, {user?.displayName?.split(' ')[0] || 'Admin'}. Here is your real-time store snapshot.
+              Welcome back, {user?.displayName?.split(' ')[0] || 'Admin'}. Real-time store snapshot.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Button 
-              variant="outline"
-              className={cn(
-                "rounded-xl px-5 border text-xs font-bold uppercase tracking-widest",
-                isDark ? "border-white/10 hover:bg-white/5 text-white" : "border-black/10 hover:bg-black/5 text-brand-maroon"
-              )}
-            >
-              Download Report
-            </Button>
-            <Button 
-              className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-xl px-6 flex items-center gap-2 uppercase tracking-widest text-xs font-bold shadow-md shadow-brand-coral/20 cursor-pointer"
+              className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-xl px-4 sm:px-6 py-2.5 flex items-center gap-2 uppercase tracking-widest text-[10px] sm:text-xs font-bold shadow-md shadow-brand-coral/20 cursor-pointer"
               onClick={() => {
                 setEditingProduct({ name: '', price: 0, category: 'Beauty', image: '', description: '', stock: 0, sizes: ['Standard'], colors: [] });
                 setIsProductModalOpen(true);
               }}
             >
-              <Plus className="w-4 h-4" /> Add Product
+              <Plus className="w-4 h-4" /> <span>Add Product</span>
             </Button>
           </div>
         </header>
@@ -349,13 +396,13 @@ export default function AdminDashboard({
           {activeTab === 'overview' && (
             <motion.div 
               key="overview"
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
+              exit={{ opacity: 0, y: -10 }}
               className="space-y-8"
             >
-              {/* Analytics Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 {stats.map((stat, i) => (
                   <div 
                     key={i} 
@@ -619,10 +666,10 @@ export default function AdminDashboard({
 
         {/* Product Modal */}
         {isProductModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-3 sm:p-4 overflow-y-auto no-tap-highlight">
             <div className={cn(
-              "border rounded-[2.5rem] w-full max-w-2xl p-6 sm:p-8 max-h-[90vh] overflow-y-auto relative shadow-2xl transition-colors",
-              isDark ? "bg-[#0d0d0d] border-white/10 text-white" : "bg-white border-black/10 text-brand-maroon"
+              "relative w-full max-w-xl max-h-[88vh] overflow-y-auto rounded-[2rem] p-4 sm:p-8 shadow-2xl border backdrop-blur-2xl transition-all my-auto",
+              isDark ? "bg-[#120a0a]/95 border-white/15 text-white shadow-black/80" : "bg-white/95 border-white/80 text-brand-maroon shadow-brand-maroon/20"
             )}>
               <button 
                 onClick={() => setIsProductModalOpen(false)}
