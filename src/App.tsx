@@ -73,6 +73,7 @@ import UserMenuDropdown from './UserMenuDropdown';
 import OrdersPage from './OrdersPage';
 import WishlistPage from './WishlistPage';
 import AccountPage from './AccountPage';
+import PWAInstallPrompt from './PWAInstallPrompt';
 
 const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance'];
 
@@ -1817,6 +1818,9 @@ const filteredProducts = useMemo(() => {
         isAdmin={isAdmin} 
         onNavigateToAdmin={() => navigate('/admin')} 
       />
+
+      {/* Luxury PWA Installation Prompt Banner */}
+      <PWAInstallPrompt theme={theme} />
     </div>
   );
 }
