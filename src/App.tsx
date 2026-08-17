@@ -284,26 +284,26 @@ export default function App() {
     }
   ];
 
-  const heroSlides = [
+  const heroSlides = useMemo(() => [
     {
       title: "Transform Your Skin",
       subtitle: "Discover premium skincare products crafted with love and science to bring out your best self.",
       label: "Personal Care",
-      image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&q=80&w=1200",
+      image: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&q=80&w=800",
       color: "bg-brand-blush/20"
     },
     {
       title: "Elevate Your Style",
       subtitle: "Discover the latest trends in women's fashion. Elegance and comfort for every occasion.",
       label: "Fashion Collection",
-      image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=1200",
+      image: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&q=80&w=800",
       color: "bg-brand-coral/10"
     },
     {
       title: "Glow Naturally",
       subtitle: "Luxury skincare for confident women who value nature and results.",
       label: "Eco-Conscious",
-      image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&q=80&w=1200",
+      image: "https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&q=80&w=800",
       color: "bg-brand-nude/20"
     },
     {
@@ -311,10 +311,16 @@ export default function App() {
       subtitle: "Experience the harmony of modern clinical science and ancient herbal wisdom.",
       zlabel: "Verified Quality",
       label: "Verified Quality",
-      image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&q=80&w=1200",
+      image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&q=80&w=800",
       color: "bg-brand-gold/10"
     }
-  ];
+  ], []);
+
+  useEffect(() => {
+    const nextIndex = (currentSlide + 1) % heroSlides.length;
+    const img = new Image();
+    img.src = heroSlides[nextIndex].image;
+  }, [currentSlide, heroSlides]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -324,10 +330,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const shouldBeScrolled = window.scrollY > 50;
+          setIsScrolled(prev => (prev !== shouldBeScrolled ? shouldBeScrolled : prev));
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -555,15 +569,11 @@ const filteredProducts = useMemo(() => {
       
       {/* Top Shipping Banner */}
       <div className="bg-brand-maroon/95 backdrop-blur-md text-white h-10 flex items-center justify-center overflow-hidden relative z-[60] border-b border-white/5">
-        <motion.div
-          animate={{ x: [0, -1000] }}
-          transition={{ repeat: Infinity, duration: 40, ease: "linear" }}
-          className="whitespace-nowrap flex gap-20 text-[10px] uppercase tracking-[0.4em] font-bold"
-        >
+        <div className="whitespace-nowrap flex gap-20 text-[10px] uppercase tracking-[0.4em] font-bold animate-marquee">
           {Array(10).fill("Free shipping on orders above ₦50,000 • Get 10% off your first luxury purchase").map((text, i) => (
             <span key={i}>{text}</span>
           ))}
-        </motion.div>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -1091,14 +1101,8 @@ const filteredProducts = useMemo(() => {
         {/* Immersive Atmospheric Background */}
         <div className="absolute inset-0 z-0">
           <div className="absolute inset-0 bg-background" />
-          <motion.div 
-            animate={{ 
-              scale: [1, 1.1, 1],
-              x: [0, 20, 0],
-              y: [0, -20, 0]
-            }}
-            transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120vw] h-[120vh] opacity-40 blur-[100px] z-0"
+          <div 
+            className="absolute top-1/2 left-1/2 w-[120vw] h-[120vh] opacity-40 blur-[60px] pointer-events-none z-0 animate-float-glow"
             style={{
               background: `radial-gradient(circle at 30% 30%, var(--brand-blush) 0%, transparent 40%), radial-gradient(circle at 70% 70%, var(--brand-nude) 0%, transparent 40%), radial-gradient(circle at 50% 50%, var(--brand-gold) 33%, transparent 50%)`
             }}
@@ -1107,7 +1111,7 @@ const filteredProducts = useMemo(() => {
 
         <div className="container mx-auto px-6 relative z-10 flex items-center py-12 md:py-20 overflow-hidden">
           <motion.div 
-            className="flex flex-col lg:flex-row items-center gap-12 lg:gap-0 w-full cursor-grab active:cursor-grabbing"
+            className="flex flex-col lg:flex-row items-center gap-12 lg:gap-0 w-full cursor-grab active:cursor-grabbing transform-gpu will-change-transform"
             drag="x"
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.2}
@@ -1124,25 +1128,25 @@ const filteredProducts = useMemo(() => {
               <AnimatePresence mode="wait">
                 <motion.div 
                   key={currentSlide}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -30 }}
-                  transition={{ duration: 0.8, ease: "easeOut" }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
                   className="space-y-8"
                 >
                   <div className="space-y-2">
                     <motion.span 
-                      initial={{ opacity: 0, x: -20 }}
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
+                      transition={{ delay: 0.1 }}
                       className="text-brand-coral text-xs uppercase tracking-[0.3em] font-bold"
                     >
                       {heroSlides[currentSlide].label}
                     </motion.span>
                     <motion.h2 
-                      initial={{ opacity: 0, scale: 0.95 }}
+                      initial={{ opacity: 0, scale: 0.98 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.4 }}
+                      transition={{ delay: 0.15 }}
                       className="text-5xl sm:text-6xl lg:text-8xl font-serif font-bold leading-[1.1] tracking-tight"
                     >
                       <span className="text-brand-coral italic block mb-2 font-normal">
@@ -1154,15 +1158,15 @@ const filteredProducts = useMemo(() => {
                   <motion.p 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 0.6 }}
+                    transition={{ delay: 0.2 }}
                     className="text-base md:text-lg text-muted-foreground max-w-sm font-light leading-relaxed"
                   >
                     {heroSlides[currentSlide].subtitle}
                   </motion.p>
                   <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.8 }}
+                    transition={{ delay: 0.25 }}
                     className="flex flex-wrap items-center gap-4 pt-4"
                   >
                     <Button 
@@ -1200,7 +1204,7 @@ const filteredProducts = useMemo(() => {
                     key={i} 
                     initial={{ opacity: 0, scale: 0 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 1 + (i * 0.1) }}
+                    transition={{ delay: 0.3 + (i * 0.05) }}
                     className="flex flex-col items-center gap-3"
                   >
                     <div className={cn("w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center border-4 border-brand-coral/10 text-[8px] md:text-[9px] font-bold text-center p-2 leading-tight uppercase tracking-tighter", item.color)}>
@@ -1215,19 +1219,21 @@ const filteredProducts = useMemo(() => {
               <AnimatePresence mode="wait">
                 <motion.div 
                   key={currentSlide}
-                  initial={{ opacity: 0, scale: 0.9, rotate: 5, x: 50 }}
+                  initial={{ opacity: 0, scale: 0.95, rotate: 2, x: 25 }}
                   animate={{ opacity: 1, scale: 1, rotate: 0, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, rotate: -5, x: -50 }}
-                  transition={{ duration: 1, ease: "easeOut" }}
+                  exit={{ opacity: 0, scale: 0.95, rotate: -2, x: -25 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
                   className="relative"
                 >
                   {/* Product Splash Effect */}
-                  <div className="absolute -inset-10 bg-gradient-to-tr from-brand-coral/10 to-transparent rounded-full blur-2xl" />
+                  <div className="absolute -inset-10 bg-gradient-to-tr from-brand-coral/10 to-transparent rounded-full blur-2xl pointer-events-none" />
                   <div className="relative z-10 max-w-md">
                     <img 
                       src={heroSlides[currentSlide].image} 
                       alt="Hero Product" 
-                      className={cn("w-full h-auto drop-shadow-2xl", theme === 'light' && "mix-blend-multiply")}
+                      decoding="async"
+                      loading="eager"
+                      className={cn("w-full h-auto drop-shadow-2xl transform-gpu will-change-transform", theme === 'light' && "mix-blend-multiply")}
                       referrerPolicy="no-referrer"
                     />
                   </div>
@@ -1346,6 +1352,8 @@ const filteredProducts = useMemo(() => {
                         <img 
                           src={product.image} 
                           alt={product.name} 
+                          decoding="async"
+                          loading="lazy"
                           className={cn("max-w-full max-h-full object-cover rounded-lg md:rounded-xl transition-transform duration-700 group-hover:scale-105", theme === 'light' && "mix-blend-multiply")}
                           referrerPolicy="no-referrer"
                         />

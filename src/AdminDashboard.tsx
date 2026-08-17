@@ -706,7 +706,7 @@ export default function AdminDashboard({
                         isDark ? "bg-[#151515] border-white/10 text-white focus:border-brand-coral" : "bg-white border-black/10 text-brand-maroon focus:border-brand-coral"
                       )}
                       value={editingProduct.category || 'Beauty'} 
-                      onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})}
+                      onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value as any})}
                     >
                       {VALID_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>

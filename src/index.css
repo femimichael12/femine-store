@@ -137,5 +137,25 @@
   }
 }
 
+@keyframes marquee {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes floatGlow {
+  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
+  50% { transform: translate3d(calc(-50% + 15px), calc(-50% - 15px), 0) scale(1.05); }
+}
+
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+}
+
+.animate-float-glow {
+  animation: floatGlow 20s ease-in-out infinite;
+  will-change: transform;
+}
+
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
