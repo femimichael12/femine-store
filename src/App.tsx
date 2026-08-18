@@ -1392,7 +1392,7 @@ const filteredProducts = useMemo(() => {
                       <div className="space-y-2.5 mt-auto">
                         <div className="space-y-0.5">
                           <p className="text-[8px] md:text-[10px] text-brand-coral uppercase tracking-widest font-bold truncate">{product.category}</p>
-                          <h4 className="font-serif font-bold text-xs md:text-base leading-tight group-hover:text-brand-coral transition-colors line-clamp-1 md:line-clamp-2">{product.name}</h4>
+                          <h4 className="font-serif font-medium md:font-semibold text-base sm:text-lg md:text-[21px] leading-[1.25] tracking-[0.01em] group-hover:text-brand-coral transition-colors line-clamp-1 md:line-clamp-2">{product.name}</h4>
                         </div>
                         
                         <div className="flex items-center justify-between pt-2 border-t border-muted/15 gap-1.5">
