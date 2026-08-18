@@ -89,12 +89,28 @@ export default function App() {
   const getCombinedProducts = useCallback((baseProducts: Product[]) => {
     try {
       const custom: Product[] = JSON.parse(localStorage.getItem('femine_custom_products') || '[]');
-      if (!custom.length) return baseProducts;
-      const baseIds = new Set(baseProducts.map(p => p.id));
-      const newCustom = custom.filter(cp => !baseIds.has(cp.id));
-      return [...newCustom, ...baseProducts];
+      
+      const productMap = new Map<string, Product>();
+      // 1. Start with full 60-item local backup catalog
+      localBackupProducts.forEach(p => productMap.set(p.id, p));
+      
+      // 2. Overlay any updated products from Firestore
+      baseProducts.forEach(p => {
+        if (p && p.id) {
+          productMap.set(p.id, p);
+        }
+      });
+      
+      // 3. Overlay any custom products added in admin
+      custom.forEach(p => {
+        if (p && p.id) {
+          productMap.set(p.id, p);
+        }
+      });
+      
+      return Array.from(productMap.values());
     } catch {
-      return baseProducts;
+      return localBackupProducts;
     }
   }, []);
 
@@ -1344,32 +1360,29 @@ const filteredProducts = useMemo(() => {
                   onClick={() => setSelectedProduct(product)}
                 >
                   <CardContent className="p-0 flex flex-col h-full justify-between">
-                    <div className="p-3 md:p-6 flex flex-col h-full justify-between">
-                      <div className={cn(
-                        "relative aspect-[4/5] sm:aspect-square rounded-xl md:rounded-[2rem] overflow-hidden mb-3 md:mb-5 flex items-center justify-center p-2 md:p-6 transition-all duration-500 border border-white/40 dark:border-white/5",
-                        idx % 3 === 0 ? "bg-brand-blush/40 dark:bg-brand-blush/10" : idx % 3 === 1 ? "bg-brand-nude/40 dark:bg-brand-nude/10" : "bg-brand-gold/10 dark:bg-brand-gold/5"
-                      )}>
+                    <div className="p-3 md:p-5 flex flex-col h-full justify-between">
+                      <div className="relative w-full aspect-[4/5] sm:aspect-square rounded-xl md:rounded-[2rem] overflow-hidden mb-3 md:mb-5 bg-muted/20 dark:bg-white/[0.02]">
                         <img 
                           src={product.image} 
                           alt={product.name} 
                           decoding="async"
                           loading="lazy"
-                          className={cn("max-w-full max-h-full object-cover rounded-lg md:rounded-xl transition-transform duration-700 group-hover:scale-105", theme === 'light' && "mix-blend-multiply")}
+                          className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
                           referrerPolicy="no-referrer"
                         />
                         {product.isFlashSale && (
-                          <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-brand-coral text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md">
+                          <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-brand-coral text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md z-10">
                             <Zap className="w-2 h-2 md:w-2.5 md:h-2.5 fill-current" />
                             <span>FLASH SALE</span>
                           </div>
                         )}
                         {product.stock <= 5 && (
-                          <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 bg-brand-maroon/90 backdrop-blur-md text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md border border-white/20">
+                          <div className="absolute bottom-2 left-2 md:bottom-4 md:left-4 bg-brand-maroon/90 backdrop-blur-md text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md border border-white/20 z-10">
                             <Flame className="w-2 h-2 md:w-2.5 md:h-2.5 text-brand-coral fill-current" />
                             <span>ONLY {product.stock} LEFT!</span>
                           </div>
                         )}
-                        <div className="absolute top-2 right-2 md:top-4 md:right-4 translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all">
+                        <div className="absolute top-2 right-2 md:top-4 md:right-4 translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all z-10">
                           <Button size="icon" className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white text-brand-coral hover:bg-brand-coral hover:text-white shadow-md">
                             <Heart className={cn("w-3.5 h-3.5 md:w-4 md:h-4", idx % 3 === 0 && "fill-current")} />
                           </Button>
