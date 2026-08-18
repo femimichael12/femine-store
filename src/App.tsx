@@ -76,6 +76,20 @@ import AccountPage from './AccountPage';
 
 const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance'];
 
+const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
+  Dresses: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&q=80&w=800',
+  Beauty: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&q=80&w=800',
+  Accessories: 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&q=80&w=800',
+  Footwear: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?auto=format&fit=crop&q=80&w=800',
+  Fragrance: 'https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&q=80&w=800',
+  Tops: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&q=80&w=800',
+  Bottoms: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&q=80&w=800',
+};
+
+const getCategoryFallbackImage = (category?: string): string => {
+  return (category && CATEGORY_FALLBACK_IMAGES[category]) || CATEGORY_FALLBACK_IMAGES['Dresses'];
+};
+
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -827,7 +841,18 @@ const filteredProducts = useMemo(() => {
                               className="flex items-center gap-3 w-full p-2 hover:bg-brand-blush/20 rounded-2xl transition-colors text-left group"
                             >
                               <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center p-2 overflow-hidden">
-                                <img src={product.image} alt={product.name} className={cn("w-full h-full object-contain transition-transform group-hover:scale-110", theme === 'light' && "mix-blend-multiply")} />
+                                <img 
+                                  src={product.image || getCategoryFallbackImage(product.category)} 
+                                  alt={product.name} 
+                                  className={cn("w-full h-full object-cover transition-transform group-hover:scale-110", theme === 'light' && "mix-blend-multiply")}
+                                  onError={(e) => {
+                                    const target = e.currentTarget;
+                                    const fallback = getCategoryFallbackImage(product.category);
+                                    if (target.src !== fallback) {
+                                      target.src = fallback;
+                                    }
+                                  }}
+                                />
                               </div>
                               <div className="flex-grow">
                                 <p className="text-sm font-bold truncate">{product.name}</p>
@@ -980,7 +1005,19 @@ const filteredProducts = useMemo(() => {
                               className="flex gap-4 bg-card/30 p-2.5 rounded-2xl border border-white/5 shadow-xs group"
                             >
                               <div className="w-18 h-24 bg-secondary rounded-xl overflow-hidden flex-shrink-0 relative">
-                                <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
+                                <img 
+                                  src={item.product.image || getCategoryFallbackImage(item.product.category)} 
+                                  alt={item.product.name} 
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    const target = e.currentTarget;
+                                    const fallback = getCategoryFallbackImage(item.product.category);
+                                    if (target.src !== fallback) {
+                                      target.src = fallback;
+                                    }
+                                  }}
+                                />
                               </div>
                               <div className="flex-grow flex flex-col justify-between py-0.5">
                                 <div className="space-y-0.5">
@@ -1363,12 +1400,19 @@ const filteredProducts = useMemo(() => {
                     <div className="p-3 md:p-5 flex flex-col h-full justify-between">
                       <div className="relative w-full aspect-[4/5] sm:aspect-square rounded-xl md:rounded-[2rem] overflow-hidden mb-3 md:mb-5 bg-muted/20 dark:bg-white/[0.02]">
                         <img 
-                          src={product.image} 
+                          src={product.image || getCategoryFallbackImage(product.category)} 
                           alt={product.name} 
                           decoding="async"
                           loading="lazy"
                           className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            const fallback = getCategoryFallbackImage(product.category);
+                            if (target.src !== fallback) {
+                              target.src = fallback;
+                            }
+                          }}
                         />
                         {product.isFlashSale && (
                           <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-brand-coral text-white text-[7px] md:text-[9px] font-bold px-2 py-0.5 md:px-3 md:py-1.5 rounded-full flex items-center gap-1 shadow-md z-10">
@@ -1439,10 +1483,17 @@ const filteredProducts = useMemo(() => {
               <div className="md:w-1/2 p-6 md:p-8 bg-muted/20 flex flex-col justify-between shrink-0 border-b md:border-b-0 md:border-r border-muted/10">
                 <div className="relative w-full aspect-[4/5] rounded-[2rem] overflow-hidden bg-background shadow-md group">
                   <motion.img 
-                    src={selectedProduct.image} 
+                    src={selectedProduct.image || getCategoryFallbackImage(selectedProduct.category)} 
                     alt={selectedProduct.name} 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     referrerPolicy="no-referrer"
+                    onError={(e: any) => {
+                      const target = e.currentTarget;
+                      const fallback = getCategoryFallbackImage(selectedProduct.category);
+                      if (target.src !== fallback) {
+                        target.src = fallback;
+                      }
+                    }}
                   />
                   {selectedProduct.isFlashSale && (
                     <div className="absolute top-4 left-4">
@@ -1464,10 +1515,17 @@ const filteredProducts = useMemo(() => {
                       )}
                     >
                       <img 
-                        src={selectedProduct.image} 
+                        src={selectedProduct.image || getCategoryFallbackImage(selectedProduct.category)} 
                         alt={`${selectedProduct.name} view ${i}`} 
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          const fallback = getCategoryFallbackImage(selectedProduct.category);
+                          if (target.src !== fallback) {
+                            target.src = fallback;
+                          }
+                        }}
                       />
                     </div>
                   ))}
