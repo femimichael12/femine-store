@@ -27,6 +27,7 @@ import {
   Loader2,
   LogOut,
   User as UserIcon,
+  Gift,
 } from 'lucide-react';
 
 import { collection, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -73,6 +74,10 @@ import UserMenuDropdown from './UserMenuDropdown';
 import OrdersPage from './OrdersPage';
 import WishlistPage from './WishlistPage';
 import AccountPage from './AccountPage';
+import GiftModePage from './GiftModePage';
+import GiftCardsPage from './GiftCardsPage';
+import GiftCustomizationModal from './components/GiftCustomizationModal';
+import { GIFT_WRAPPING_FEE } from './lib/giftRecommendation';
 
 const STORE_CATEGORIES = ['All', 'Beauty', 'Dresses', 'Accessories', 'Footwear', 'Fragrance'];
 
@@ -227,6 +232,8 @@ export default function App() {
   });
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [customizingProduct, setCustomizingProduct] = useState<Product | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved) return saved as 'light' | 'dark';
@@ -392,17 +399,35 @@ const filteredProducts = useMemo(() => {
   });
 }, [selectedCategory, searchQuery, products]);
 
-  const addToCart = (product: Product, size: string, color: string, qty = 1) => {
+  const addToCart = (
+    product: Product, 
+    size: string, 
+    color: string, 
+    qty = 1,
+    giftData?: {
+      isGift: boolean;
+      recipientName: string;
+      giftMessage: string;
+      giftWrapping: boolean;
+      giftWrappingFee: number;
+    }
+  ) => {
     setCart(prev => {
       const existing = prev.find(item => 
         item.product.id === product.id && 
         item.selectedSize === size && 
-        item.selectedColor === color
+        item.selectedColor === color &&
+        item.isGift === giftData?.isGift &&
+        item.recipientName === giftData?.recipientName
       );
       
-      toast.success(`${product.name} added to bag`, {
-        description: `Size: ${size}, Color: ${color}`,
-        duration: 2000,
+      const desc = giftData?.isGift 
+        ? `Gift for ${giftData.recipientName}${giftData.giftWrapping ? ' (With Signature Wrapping)' : ''}`
+        : `Size: ${size}, Color: ${color}`;
+
+      toast.success(`${product.name} added to ${giftData?.isGift ? 'Gift Bag' : 'bag'}`, {
+        description: desc,
+        duration: 2500,
       });
 
       if (existing) {
@@ -410,7 +435,13 @@ const filteredProducts = useMemo(() => {
           item === existing ? { ...item, quantity: item.quantity + qty } : item
         );
       }
-      return [...prev, { product, quantity: qty, selectedSize: size, selectedColor: color }];
+      return [...prev, { 
+        product, 
+        quantity: qty, 
+        selectedSize: size, 
+        selectedColor: color,
+        ...(giftData || {})
+      }];
     });
   };
 
@@ -435,7 +466,11 @@ const filteredProducts = useMemo(() => {
     }));
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const cartTotal = cart.reduce((sum, item) => {
+    const itemPrice = item.product.salePrice && item.product.salePrice > 0 ? item.product.salePrice : item.product.price;
+    const wrappingFee = item.giftWrapping ? (item.giftWrappingFee || GIFT_WRAPPING_FEE) : 0;
+    return sum + (itemPrice * item.quantity) + wrappingFee;
+  }, 0);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const formatPrice = (price?: number) =>
@@ -463,6 +498,13 @@ const filteredProducts = useMemo(() => {
         total: cartTotal,
         totalPrice: cartTotal,
         product: cart.map(c => c.product.name).join(', ') || 'Feminé Item',
+        isGiftOrder: cart.some(c => c.isGift),
+        giftDetails: cart.filter(c => c.isGift).map(c => ({
+          productName: c.product.name,
+          recipient: c.recipientName,
+          message: c.giftMessage,
+          wrapped: c.giftWrapping
+        })),
         status: 'Delivered',
         createdAt: new Date().toISOString()
       });
@@ -589,6 +631,33 @@ const filteredProducts = useMemo(() => {
     );
   }
 
+  if (location.pathname === '/gift-mode') {
+    return (
+      <GiftModePage 
+        products={products} 
+        onExit={() => navigate('/')} 
+        onNavigateToGiftCards={() => navigate('/gift-cards')} 
+        theme={theme} 
+        toggleTheme={toggleTheme} 
+        onAddToCart={addToCart} 
+        cartCount={cartCount} 
+        onOpenCart={() => setIsCartOpen(true)}
+        onSelectProduct={(product) => setSelectedProduct(product)} 
+      />
+    );
+  }
+
+  if (location.pathname === '/gift-cards') {
+    return (
+      <GiftCardsPage 
+        onExit={() => navigate('/')} 
+        onNavigateToGiftMode={() => navigate('/gift-mode')} 
+        theme={theme} 
+        toggleTheme={toggleTheme} 
+      />
+    );
+  }
+
   if (isLoading || isAuthLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-brand-coral" /></div>;
   }
@@ -652,7 +721,7 @@ const filteredProducts = useMemo(() => {
                 <div className="flex-1 overflow-y-auto min-h-0 space-y-8 pr-1 scrollbar-thin scrollbar-thumb-white/20">
                   {/* Main Nav Items */}
                   <div className="flex flex-col gap-4">
-                    {['Home', 'Shop', 'New Arrivals', 'Best Sellers', 'Beauty', 'Fashion', 'Accessories', 'Wishlist', 'Cart', 'Orders', 'Contact'].map((item, i) => (
+                    {['Home', 'Shop', '🎁 Gift Mode', '🎁 Gift Cards', 'New Arrivals', 'Best Sellers', 'Beauty', 'Fashion', 'Accessories', 'Wishlist', 'Cart', 'Orders', 'Contact'].map((item, i) => (
                       <motion.button
                         key={item}
                         initial={{ opacity: 0, x: -15 }}
@@ -661,8 +730,11 @@ const filteredProducts = useMemo(() => {
                         className="text-left group flex items-center justify-between cursor-pointer py-1"
                         onClick={() => {
                           setIsMobileMenuOpen(false);
-                          if (item === 'Wishlist') navigate('/wishlist');
+                          if (item === '🎁 Gift Mode') navigate('/gift-mode');
+                          else if (item === '🎁 Gift Cards') navigate('/gift-cards');
+                          else if (item === 'Wishlist') navigate('/wishlist');
                           else if (item === 'Orders') navigate('/orders');
+                          else if (item === 'Cart') setIsCartOpen(true);
                           else if (item === 'Home') navigate('/');
                           else {
                             const el = document.getElementById('products');
@@ -670,7 +742,10 @@ const filteredProducts = useMemo(() => {
                           }
                         }}
                       >
-                        <span className="text-base font-light tracking-wide group-hover:text-brand-coral group-hover:translate-x-2 transition-all duration-300">
+                        <span className={cn(
+                          "text-base font-light tracking-wide group-hover:text-brand-coral group-hover:translate-x-2 transition-all duration-300",
+                          (item === '🎁 Gift Mode' || item === '🎁 Gift Cards') && "text-brand-coral font-medium"
+                        )}>
                           {item}
                         </span>
                         <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-all text-brand-coral" />
@@ -765,6 +840,17 @@ const filteredProducts = useMemo(() => {
               {cat}
             </button>
           ))}
+
+          {/* Dedicated Luxury Gift Mode Link in Main Nav */}
+          <button
+            onClick={() => navigate('/gift-mode')}
+            className={cn(
+              "flex items-center gap-1.5 hover:text-brand-coral transition-all duration-300 relative py-1 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-0 after:h-px after:bg-brand-coral after:transition-all hover:after:w-full cursor-pointer",
+              theme === 'dark' ? "text-amber-200/90" : "text-brand-coral"
+            )}
+          >
+            <span>🎁 Gift Mode</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 md:gap-6 shrink-0">
@@ -934,9 +1020,10 @@ const filteredProducts = useMemo(() => {
             </button>
           )}
 
-          <Sheet>
+          <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
             <SheetTrigger
-              className={cn("relative group shrink-0 p-1")}
+              onClick={() => setIsCartOpen(true)}
+              className={cn("relative group shrink-0 p-1 cursor-pointer")}
             >
               <ShoppingBag className="w-5 h-5 group-hover:scale-110 transition-transform" />
               <AnimatePresence>
@@ -982,11 +1069,8 @@ const filteredProducts = useMemo(() => {
                         <h3 className="font-serif text-xl font-bold mb-1 text-foreground">Your bag is empty</h3>
                         <p className="text-xs max-w-[220px] mx-auto mb-6">Looks like you haven't added anything to your bag yet.</p>
                         <Button 
-                          className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-6 uppercase tracking-widest text-[10px] font-bold py-2"
-                          onClick={() => {
-                            const closeBtn = document.querySelector('[data-state="open"] button[aria-label="Close"]');
-                            if (closeBtn) (closeBtn as HTMLButtonElement).click();
-                          }}
+                          className="bg-brand-coral text-white hover:bg-brand-coral/90 rounded-full px-6 uppercase tracking-widest text-[10px] font-bold py-2 cursor-pointer"
+                          onClick={() => setIsCartOpen(false)}
                         >
                           Start Shopping
                         </Button>
@@ -994,72 +1078,108 @@ const filteredProducts = useMemo(() => {
                     ) : (
                       <motion.div layout className="space-y-3">
                         <AnimatePresence initial={false}>
-                          {cart.map((item, idx) => (
-                            <motion.div 
-                              key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}`}
-                              layout="position"
-                              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.9, x: -20 }}
-                              transition={{ duration: 0.3 }}
-                              className="flex gap-4 bg-card/30 p-2.5 rounded-2xl border border-white/5 shadow-xs group"
-                            >
-                              <div className="w-18 h-24 bg-secondary rounded-xl overflow-hidden flex-shrink-0 relative">
-                                <img 
-                                  src={item.product.image || getCategoryFallbackImage(item.product.category)} 
-                                  alt={item.product.name} 
-                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                                  referrerPolicy="no-referrer"
-                                  onError={(e) => {
-                                    const target = e.currentTarget;
-                                    const fallback = getCategoryFallbackImage(item.product.category);
-                                    if (target.src !== fallback) {
-                                      target.src = fallback;
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <div className="flex-grow flex flex-col justify-between py-0.5">
-                                <div className="space-y-0.5">
-                                  <div className="flex justify-between items-start gap-2">
-                                    <h4 className="font-bold text-xs md:text-sm leading-snug group-hover:text-brand-coral transition-colors line-clamp-1">{item.product.name}</h4>
-                                    <p className="font-bold text-xs md:text-sm font-sans whitespace-nowrap">{formatPrice(item.product.price)}</p>
-                                  </div>
-                                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">SIZE: {item.selectedSize} &bull; COLOR: {item.selectedColor}</p>
+                          {cart.map((item, idx) => {
+                            const itemPrice = item.product.salePrice && item.product.salePrice > 0 ? item.product.salePrice : item.product.price;
+                            const itemWrappingFee = item.giftWrapping ? (item.giftWrappingFee || GIFT_WRAPPING_FEE) : 0;
+                            const singleItemTotal = itemPrice + itemWrappingFee;
+
+                            return (
+                              <motion.div 
+                                key={`${item.product.id}-${item.selectedSize}-${item.selectedColor}-${item.isGift ? item.recipientName : 'reg'}-${idx}`}
+                                layout="position"
+                                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                                transition={{ duration: 0.3 }}
+                                className={cn(
+                                  "flex gap-4 p-3 rounded-2xl border transition-all shadow-xs group",
+                                  item.isGift 
+                                    ? "bg-brand-coral/[0.04] border-brand-coral/25" 
+                                    : "bg-card/30 border-white/5"
+                                )}
+                              >
+                                <div className="w-18 h-24 bg-secondary rounded-xl overflow-hidden flex-shrink-0 relative">
+                                  <img 
+                                    src={item.product.image || getCategoryFallbackImage(item.product.category)} 
+                                    alt={item.product.name} 
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      const fallback = getCategoryFallbackImage(item.product.category);
+                                      if (target.src !== fallback) {
+                                        target.src = fallback;
+                                      }
+                                    }}
+                                  />
+                                  {item.isGift && (
+                                    <div className="absolute top-1 left-1 bg-brand-coral text-white p-1 rounded-md shadow-xs">
+                                      <Gift className="w-2.5 h-2.5" />
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center justify-between mt-2">
-                                  <div className="flex items-center bg-secondary rounded-full p-0.5 border border-white/5">
+                                <div className="flex-grow flex flex-col justify-between py-0.5">
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between items-start gap-2">
+                                      <h4 className="font-bold text-xs md:text-sm leading-snug group-hover:text-brand-coral transition-colors line-clamp-1">{item.product.name}</h4>
+                                      <p className="font-bold text-xs md:text-sm font-sans whitespace-nowrap">{formatPrice(singleItemTotal * item.quantity)}</p>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">SIZE: {item.selectedSize} &bull; COLOR: {item.selectedColor}</p>
+                                    
+                                    {/* Luxury Gift Bag Details */}
+                                    {item.isGift && (
+                                      <div className="pt-0.5 space-y-0.5">
+                                        <div className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-brand-coral bg-brand-coral/10 px-2 py-0.5 rounded-md border border-brand-coral/20">
+                                          <Gift className="w-2.5 h-2.5" />
+                                          <span>Gift for {item.recipientName || 'Someone Special'}</span>
+                                        </div>
+                                        {item.giftMessage && (
+                                          <p className="text-[10px] text-muted-foreground font-serif italic line-clamp-1">
+                                            "{item.giftMessage}"
+                                          </p>
+                                        )}
+                                        {item.giftWrapping && (
+                                          <p className="text-[8px] text-brand-gold font-bold uppercase tracking-wider">
+                                            + Signature Gift Wrapping ({formatPrice(itemWrappingFee)})
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between mt-2">
+                                    <div className="flex items-center bg-secondary rounded-full p-0.5 border border-white/5">
+                                      <button 
+                                        onClick={() => updateQuantity(idx, -1)} 
+                                        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95 text-xs cursor-pointer"
+                                      >
+                                        <Minus className="w-3 h-3" />
+                                      </button>
+                                      <motion.span 
+                                        key={item.quantity}
+                                        initial={{ scale: 0.5 }}
+                                        animate={{ scale: 1 }}
+                                        className="w-6 text-center text-xs font-bold"
+                                      >
+                                        {item.quantity}
+                                      </motion.span>
+                                      <button 
+                                        onClick={() => updateQuantity(idx, 1)} 
+                                        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95 text-xs cursor-pointer"
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                      </button>
+                                    </div>
                                     <button 
-                                      onClick={() => updateQuantity(idx, -1)} 
-                                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95 text-xs"
+                                      onClick={() => removeFromCart(idx)} 
+                                      className="p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors cursor-pointer"
                                     >
-                                      <Minus className="w-3 h-3" />
-                                    </button>
-                                    <motion.span 
-                                      key={item.quantity}
-                                      initial={{ scale: 0.5 }}
-                                      animate={{ scale: 1 }}
-                                      className="w-6 text-center text-xs font-bold"
-                                    >
-                                      {item.quantity}
-                                    </motion.span>
-                                    <button 
-                                      onClick={() => updateQuantity(idx, 1)} 
-                                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white hover:text-brand-coral transition-all active:scale-95 text-xs"
-                                    >
-                                      <Plus className="w-3 h-3" />
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
-                                  <button 
-                                    onClick={() => removeFromCart(idx)} 
-                                    className="p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-full transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
                                 </div>
-                              </div>
-                            </motion.div>
-                          ))}
+                              </motion.div>
+                            );
+                          })}
                         </AnimatePresence>
                       </motion.div>
                     )}
@@ -1655,9 +1775,9 @@ const filteredProducts = useMemo(() => {
                 </div>
 
                 {/* Primary Action Buttons */}
-                <div className="pt-6 flex items-center gap-3">
+                <div className="pt-6 flex flex-wrap items-center gap-3">
                   <Button
-                    className="flex-1 h-13 rounded-2xl bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-xs font-bold shadow-lg shadow-brand-coral/20 border-none flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    className="flex-1 h-13 rounded-2xl bg-brand-coral text-white hover:bg-brand-coral/90 uppercase tracking-widest text-xs font-bold shadow-lg shadow-brand-coral/20 border-none flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 min-w-[140px]"
                     onClick={() => {
                       addToCart(selectedProduct, selectedSize, selectedColor, selectedQuantity);
                       setSelectedProduct(null);
@@ -1665,6 +1785,19 @@ const filteredProducts = useMemo(() => {
                   >
                     <ShoppingBag className="w-4 h-4" />
                     <span>Add to Bag</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-13 px-5 rounded-2xl border-brand-coral/40 text-brand-coral hover:bg-brand-coral/10 uppercase tracking-widest text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+                    onClick={() => {
+                      setCustomizingProduct(selectedProduct);
+                      setSelectedProduct(null);
+                    }}
+                  >
+                    <Gift className="w-4 h-4" />
+                    <span>Make It a Gift</span>
                   </Button>
 
                   <Button 
@@ -1842,10 +1975,10 @@ const filteredProducts = useMemo(() => {
             <div className="space-y-6">
               <h4 className="text-xs uppercase tracking-[0.2em] font-bold">Quick Links</h4>
               <ul className="space-y-4 text-[10px] uppercase tracking-widest text-muted-foreground">
-                <li><button className="hover:text-brand-coral transition-colors">Home</button></li>
-                <li><button className="hover:text-brand-coral transition-colors">Shop</button></li>
-                <li><button className="hover:text-brand-coral transition-colors">About Us</button></li>
-                <li><button className="hover:text-brand-coral transition-colors">Blog</button></li>
+                <li><button onClick={() => { const el = document.getElementById('products'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }} className="hover:text-brand-coral transition-colors cursor-pointer">Shop All</button></li>
+                <li><button onClick={() => navigate('/gift-mode')} className="text-brand-coral font-bold hover:underline transition-colors cursor-pointer flex items-center gap-1"><span>🎁 Gift Mode</span></button></li>
+                <li><button onClick={() => navigate('/gift-cards')} className="hover:text-brand-coral transition-colors cursor-pointer">Digital Gift Cards</button></li>
+                <li><button onClick={() => navigate('/wishlist')} className="hover:text-brand-coral transition-colors cursor-pointer">Wishlist</button></li>
               </ul>
             </div>
 
@@ -1895,6 +2028,17 @@ const filteredProducts = useMemo(() => {
         user={user} 
         isAdmin={isAdmin} 
         onNavigateToAdmin={() => navigate('/admin')} 
+      />
+
+      {/* Global "Make It a Gift" Customization Modal */}
+      <GiftCustomizationModal
+        product={customizingProduct}
+        isOpen={!!customizingProduct}
+        onClose={() => setCustomizingProduct(null)}
+        theme={theme}
+        onAddToGiftBag={(product, size, color, qty, giftData) => {
+          addToCart(product, size, color, qty, giftData);
+        }}
       />
     </div>
   );

@@ -6,7 +6,8 @@ import {
   Heart, 
   LogOut, 
   ChevronDown, 
-  ShieldCheck 
+  ShieldCheck,
+  Gift
 } from 'lucide-react';
 import { signOut, User } from 'firebase/auth';
 import { auth } from './firebase';
@@ -155,6 +156,21 @@ export default function UserMenuDropdown({
               >
                 <Heart className="w-3.5 h-3.5 text-brand-coral shrink-0" />
                 <span>Wishlist</span>
+              </button>
+
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setIsOpen(false);
+                  onNavigate('/gift-mode');
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-medium uppercase tracking-wider transition-colors cursor-pointer text-left",
+                  isDark ? "hover:bg-white/10 text-white" : "hover:bg-brand-coral/10 text-brand-maroon"
+                )}
+              >
+                <Gift className="w-3.5 h-3.5 text-brand-coral shrink-0" />
+                <span>Gift Mode</span>
               </button>
 
               {isAdmin && (
